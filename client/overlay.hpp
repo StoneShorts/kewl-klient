@@ -1,4 +1,4 @@
-// overlay.hpp -- the transparent window the client draws on, and the one function that puts pixels in it.
+// overlay.hpp -- layered-window back buffers, and the one function that puts pixels in them.
 //
 // The interesting decision here is that C++ does NOT draw anything. Java hands us a finished image once
 // a frame and we put it on the screen. That is the opposite of how most clients do it, and it is the
@@ -13,83 +13,128 @@
 // graphics API to get right, and it crashes inside someone else's render loop when you get it wrong. A
 // layered window is a page of code you can read in one sitting. The cost is that it will not appear in
 // screenshots or recordings, and it can flicker. That trade is deliberate.
+//
+// There are TWO of these windows now: the game overlay (this file's g_overlay, fully click-through) and
+// the control panel (panel.hpp, which must receive clicks). The buffer + present logic is shared, which
+// is why it is a struct rather than a pile of globals: a Layered is one window's drawing surface, and
+// each window owns one.
 #pragma once
 #include <windows.h>
 #include <cstdint>
 #include <cstring>
 
-namespace kk::overlay {
+namespace kk {
 
-inline HWND    g_hwnd = nullptr;
-inline HDC     g_memDc = nullptr;
-inline HBITMAP g_bitmap = nullptr;
-inline void*   g_pixels = nullptr;      // the DIB's own memory, ARGB, top-down
-inline int     g_width = 0, g_height = 0;
-
-/// Throw away the current back buffer. Safe to call when there isn't one.
-inline void releaseSurface() {
-    if (g_memDc)   { DeleteDC(g_memDc);      g_memDc = nullptr; }
-    if (g_bitmap)  { DeleteObject(g_bitmap); g_bitmap = nullptr; }
-    g_pixels = nullptr;
-    g_width = g_height = 0;
-}
-
-/// Make sure we have a back buffer of exactly this size. Recreates it when the game window resizes.
-inline bool ensureSurface(int w, int h) {
-    if (w <= 0 || h <= 0) return false;
-    if (g_memDc && w == g_width && h == g_height) return true;
-    releaseSurface();
-
-    BITMAPINFO bi{};
-    bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth       = w;
-    bi.bmiHeader.biHeight      = -h;          // negative = top-down, matching how Java lays out pixels
-    bi.bmiHeader.biPlanes      = 1;
-    bi.bmiHeader.biBitCount    = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
-
-    HDC screen = GetDC(nullptr);
-    g_memDc  = CreateCompatibleDC(screen);
-    g_bitmap = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &g_pixels, nullptr, 0);
-    ReleaseDC(nullptr, screen);
-
-    if (!g_memDc || !g_bitmap || !g_pixels) { releaseSurface(); return false; }
-    SelectObject(g_memDc, g_bitmap);
-    g_width = w;
-    g_height = h;
-    return true;
-}
-
-/// Copy `src` (w*h pixels of premultiplied ARGB) into the window and show it.
+/// One layered window's back buffer: a DIB, its pixels, and the UpdateLayeredWindow call.
 ///
 /// PREMULTIPLIED is not optional. UpdateLayeredWindow interprets the colour channels as already scaled
 /// by alpha; hand it straight ARGB and every semi-transparent pixel comes out too bright, with pale
 /// halos around text. Java has a pixel format for exactly this -- TYPE_INT_ARGB_PRE -- so the Java side
 /// draws into one of those and no conversion happens anywhere.
-inline void present(const void* src, int w, int h) {
-    if (!g_hwnd || !src) return;
-    if (!ensureSurface(w, h)) return;
+struct Layered {
+    HWND    hwnd    = nullptr;
+    HDC     memDc   = nullptr;
+    HBITMAP bitmap  = nullptr;
+    void*   pixels  = nullptr;      // the DIB's own memory, ARGB, top-down
+    int     width = 0, height = 0;
 
-    std::memcpy(g_pixels, src, static_cast<std::size_t>(w) * h * 4);
+    /// Throw away the current back buffer. Safe to call when there isn't one.
+    void release() {
+        if (memDc)  { DeleteDC(memDc);   memDc = nullptr; }
+        if (bitmap) { DeleteObject(bitmap); bitmap = nullptr; }
+        pixels = nullptr;
+        width = height = 0;
+    }
 
-    POINT         srcPt{ 0, 0 };
-    SIZE          size{ w, h };
-    BLENDFUNCTION blend{ AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+    /// Make sure we have a back buffer of exactly this size. Recreates it when the size changes.
+    bool ensure(int w, int h) {
+        if (w <= 0 || h <= 0) return false;
+        if (memDc && w == width && h == height) return true;
+        release();
 
-    HDC screen = GetDC(nullptr);
-    UpdateLayeredWindow(g_hwnd, screen, nullptr, &size, g_memDc, &srcPt, 0, &blend, ULW_ALPHA);
-    ReleaseDC(nullptr, screen);
-}
+        BITMAPINFO bi{};
+        bi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+        bi.bmiHeader.biWidth       = w;
+        bi.bmiHeader.biHeight      = -h;          // negative = top-down, matching how Java lays out pixels
+        bi.bmiHeader.biPlanes      = 1;
+        bi.bmiHeader.biBitCount    = 32;
+        bi.bmiHeader.biCompression = BI_RGB;
 
-/// Move and resize the overlay to sit exactly on top of `game`'s client area.
+        HDC screen = GetDC(nullptr);
+        memDc  = CreateCompatibleDC(screen);
+        bitmap = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &pixels, nullptr, 0);
+        ReleaseDC(nullptr, screen);
+
+        if (!memDc || !bitmap || !pixels) { release(); return false; }
+        SelectObject(memDc, bitmap);
+        width  = w;
+        height = h;
+        return true;
+    }
+
+    /// Copy `src` (w*h pixels of premultiplied ARGB) into the back buffer, WITHOUT presenting it.
+    ///
+    /// Split from show() on purpose, and the comment on nPresent in jvm.hpp is the why: the copy runs
+    /// inside a GetPrimitiveArrayCritical window, and the JNI critical-region rule forbids anything in
+    /// there that can block or allocate. ensure() (CreateDIBSection on a resize) and UpdateLayeredWindow
+    /// (an X11 round trip under Wine, easily milliseconds) are both exactly that, so the caller takes
+    /// the critical pointer, memcpys into a buffer that already exists, releases it, and only then
+    /// calls show().
+    bool copyIn(const void* src, int w, int h) {
+        if (!hwnd || !src) return false;
+        if (!ensure(w, h)) return false;
+        std::memcpy(pixels, src, static_cast<std::size_t>(w) * h * 4);
+        return true;
+    }
+
+    /// Put the last copied frame on the screen, at the window's current position. Callers that need the
+    /// window moved (the panel follows the game's right edge) position it before calling.
+    void show() {
+        if (!hwnd || !pixels) return;
+
+        POINT         srcPt{ 0, 0 };
+        SIZE          size{ width, height };
+        BLENDFUNCTION blend{ AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+
+        HDC screen = GetDC(nullptr);
+        UpdateLayeredWindow(hwnd, screen, nullptr, &size, memDc, &srcPt, 0, &blend, ULW_ALPHA);
+        ReleaseDC(nullptr, screen);
+    }
+
+    /// Copy `src` into the window and show it, at its current position.
+    void present(const void* src, int w, int h) {
+        if (copyIn(src, w, h)) show();
+    }
+};
+
+/// The game overlay: covers the game's whole client area, fully click-through (see dllmain.cpp).
+inline Layered g_overlay;
+
+/// The window whose client rect IS the game's drawing canvas: NXT's JagRenderView child, with the
+/// game frame as the fallback until that child exists. The projection answers in this window's
+/// coordinates, the overlay must sit on this rect, and Java must size its image from it -- all four
+/// call sites (followWindow, nViewport, nInput, nProject) must measure the SAME window, because the
+/// overlay is positioned by one call and sized by another: two different answers make a layered
+/// window that starts at the canvas and stretches across the whole host. Set every frame by
+/// dllmain.cpp; null until then.
+inline HWND g_canvasWindow = nullptr;
+
+}  // namespace kk
+
+namespace kk::overlay {
+
+/// Move and resize the overlay to sit exactly on top of `game`'s client area. `game` may be a child
+/// window (it is, once the host embeds it) -- ClientToScreen walks the parent chain, so the result is
+/// still a screen point. Z-order is NOT touched here: dllmain.cpp's loop pins the overlay just above
+/// the host window, and setting it here would fight that every frame.
 inline void followWindow(HWND game) {
-    if (!g_hwnd || !game) return;
+    if (!g_overlay.hwnd || !game) return;
     RECT r{};
     GetClientRect(game, &r);
     POINT tl{ r.left, r.top };
     ClientToScreen(game, &tl);
-    SetWindowPos(g_hwnd, HWND_TOPMOST, tl.x, tl.y, r.right - r.left, r.bottom - r.top,
-                 SWP_NOACTIVATE);
+    SetWindowPos(g_overlay.hwnd, nullptr, tl.x, tl.y, r.right - r.left, r.bottom - r.top,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 }  // namespace kk::overlay

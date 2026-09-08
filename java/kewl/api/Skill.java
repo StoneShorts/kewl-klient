@@ -34,7 +34,8 @@ public enum Skill {
     FARMING(19),
     RUNECRAFT(20),
     HUNTER(21),
-    CONSTRUCTION(22);
+    CONSTRUCTION(22),
+    SAILING(23);
 
     /** How many entries the client's stat arrays actually hold -- more than there are skills. */
     public static final int ARRAY_SIZE = 25;

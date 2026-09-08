@@ -19,7 +19,6 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.util.DefinedDataIterator;
-import ghidra.program.model.data.StringDataInstance;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -29,12 +28,77 @@ import java.util.List;
 public class FindOffsets extends GhidraScript {
 
     // The binding names worth looking for. Add to this list as you need more of the game.
+    //
+    // The block below the originals is for the RuneLite shim (Phase D of the port): each anchor is a
+    // CANDIDATE spelling of a binding that should sit near the memory the shim needs. The script
+    // reports "NOT FOUND" harmlessly for a wrong guess, so cast a wide net -- but verify whatever a
+    // hit points at against an observable in-game before trusting it, exactly like every offset in
+    // client/offsets.hpp. None of these are confirmed yet.
     private static final String[] ANCHORS = {
         "worldToScreenCoord",   // -> WORLD_TO_SCREEN
         "npcCoord",
         "playerCoord",
         "npcName",
         "getNpcObj",
+
+        // -- varps: the int[] of varp values on the client object. getVarbit's registration should
+        //    also lead to the varbit definition table (varp index, low bit, width).
+        "getVarp",
+        "getVarbit",
+
+        // -- env: game state enum + current world id. If no string anchor exists, fall back to the
+        //    plan's method: the state int walks a small known value set -- break on it during login.
+        "getGameState",
+        "getWorld",
+
+        // -- containers: inventory/bank/worn item arrays.
+        "getItemContainer",
+        "getInv",
+        "getContainer",
+
+        // -- widgets: the widget tree. Worldmap.MAP_CONTAINER is the first target because its bounds
+        //    are visually verifiable (resize the window, the bounds must track the map box).
+        "getWidget",
+        "widgetPos",
+
+        // -- world map: centre (world tiles) + zoom. Verify by landing the shim's marker on a
+        //    landmark you can see out the window too.
+        "getMapCenter",
+        "worldMapCenter",
+
+        // -- menu: the struct DO_ACTION is fed from (open flag, entries, click record). The stronger
+        //    anchor is DO_ACTION itself -- trace what writes its arguments -- but try these first.
+        "getMenu",
+        "menuEntry",
+
+        // -- CONFIRMED PRESENT in client-240-6 (sha256 d6a43c08..., strings dump 2026-09-05):
+        //    inventory container bindings -- the container native's anchors.
+        "invGetObjId",
+        "invGetNum",
+        "invSize",
+        "invTotal",
+
+        // -- widget/interface access. "ifType" is the RTTI-visible accessor; "iftypes" is the
+        //    definition-table name, whose xrefs build the widget definition array.
+        "ifType",
+
+        // -- world map: map coordinate/origin bindings for the centre+zoom reads.
+        "getMapCoordinate",
+        "getMapOrigin",
+        "getMapTile",
+        "drawOnWorldMap",
+
+        // -- client state: "worldid" is the current-world field's Lua binding name.
+        "worldid",
+
+        // -- real tick counter, if the client exposes its own (kewl currently derives it cycle/30).
+        "getTickCount",
+
+        // -- entity coords beyond the originals: objCoord (items), locCoord (scenery), and the
+        //    generic getCoord -- each walks to the same scene-entity arrays the others use.
+        "objCoord",
+        "locCoord",
+        "getCoord",
     };
 
     @Override
@@ -71,7 +135,9 @@ public class FindOffsets extends GhidraScript {
         out.add("#   for the function pointer it registers next to the name -- that is your leaf. Put its");
         out.add("#   rva in client/offsets.hpp and re-check BUILD_ID at the same time.");
 
-        File f = new File(getSourceFile().getParentFile().getParentFile(), "offsets_found.txt");
+        // getSourceFile() is a ResourceFile (not a File) in current Ghidra, so rebuild the path.
+        File f = new File(new File(getSourceFile().getAbsolutePath()).getParentFile().getParentFile(),
+                          "offsets_found.txt");
         try (PrintWriter w = new PrintWriter(f)) {
             for (String line : out) w.println(line);
         }
@@ -81,10 +147,9 @@ public class FindOffsets extends GhidraScript {
     /** Every defined string in the binary equal to `want`. */
     private List<Address> findStrings(String want) {
         List<Address> hits = new ArrayList<>();
-        for (var data : DefinedDataIterator.definedStrings(currentProgram)) {
-            StringDataInstance s = StringDataInstance.getStringDataInstance(data);
-            String v = s.getStringValue();
-            if (v != null && v.equals(want)) hits.add(data.getAddress());
+        for (var data : DefinedDataIterator.byDataInstance(currentProgram, d -> d.hasStringValue())) {
+            String v = data.getDefaultValueRepresentation();
+            if (v != null && v.replaceAll("^\"|\"$", "").equals(want)) hits.add(data.getAddress());
         }
         // Some builds leave these as raw bytes rather than defined data. Fall back to a memory search.
         if (hits.isEmpty()) {

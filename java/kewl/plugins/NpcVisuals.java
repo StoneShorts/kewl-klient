@@ -16,9 +16,18 @@ import kewl.ui.Theme;
 /**
  * Draws a box over every NPC, optionally only the ones you care about.
  *
- * <p>Slightly more involved than the player one because of the id filter, which is also the most useful
- * thing here: leave it blank while you look around, read the ids off the boxes, then type the ones you
- * want. That is how you find an id without a cache reader.</p>
+ * <p>THE WORKED EXAMPLE, not the client's NPC visuals. Slightly more involved than the player one
+ * because of the id filter, which is also the most useful thing to learn here: leave it blank while
+ * you look around, read the ids off the boxes, then type the ones you want. That is how you find an
+ * id without a cache reader.</p>
+ *
+ * <p>What the client actually draws over NPCs is the RuneLite port, {@code NPC Indicators}
+ * ({@code net.runelite.client.plugins.npchighlight}): a convex hull at the NPC's own ground height
+ * instead of a fixed 16x30 box, the name (falling back to {@code #id}, the trick this example
+ * teaches) instead of the bare id, true/south-west tile styles, a minimap name, and RuneLite's own
+ * wildcard list -- with a plain number in that list still matching a type id, so the workflow above
+ * carries straight over. This one is registered in the Developer section and stays OFF, so the two
+ * never draw over each other (2026-09-06). Nothing in the port reads anything from here.</p>
  */
 public final class NpcVisuals extends Plugin {
 
@@ -90,7 +99,7 @@ public final class NpcVisuals extends Plugin {
             if (npc.distance() > range) continue;
             if (!filter.isEmpty() && !filter.contains(npc.id())) continue;
 
-            if (tiles) Hud.tile(g, Game.tileOutline(npc.sceneX(), npc.sceneY()), colour);
+            if (tiles) Hud.tile(g, npc.tileOutline(), colour);      // at the NPC's own ground height
 
             Point at = npc.screen();
             if (at == null) continue;

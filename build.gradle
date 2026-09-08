@@ -12,17 +12,36 @@ plugins {
     id 'java'
 }
 
-repositories { mavenCentral() }      // nothing is pulled from here; the project has no dependencies.
+repositories { mavenCentral() }
+
+// The only external things in the build: lombok (build-time code generation for the ported plugin's
+// @Getter boilerplate) and the test libraries for the ported plugin's own test suite. None of it
+// reaches the jar except test classes, which never ship.
+dependencies {
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    testCompileOnly 'org.projectlombok:lombok:1.18.34'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.34'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
+}
 
 // The Java lives in java/, not src/main/java. This project is small enough that the extra nesting
 // bought nothing.
 sourceSets.main.java.srcDirs = ['java']
-sourceSets.main.resources.srcDirs = []
+sourceSets.main.resources.srcDirs = ['resources']
+sourceSets.test.java.srcDirs = ['java-test']
+sourceSets.test.resources.srcDirs = ['resources']
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
 }
+
+// The sources are UTF-8. javac on JDK 17 still defaults to the platform charset -- cp1252 on an
+// English Windows -- which quietly turns the "péché" literal in HubTest into mojibake and fails a test
+// that passes on every Linux box (2026-09-05). JDK 18+ made UTF-8 the default; say it either way.
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
 
 // Everything the launcher needs ends up here, side by side: KewlKlient.exe, kewlklient.dll,
 // kewlklient.jar, kewlklient.ini. The DLL finds the jar by looking next to itself, so they must stay
@@ -148,6 +167,23 @@ tasks.register('writeIni') {
         String path = gradleJdk.replace('/', '\\')
         def text = file('kewlklient.ini').text.replaceFirst(
                 /(?m)^java=.*$/, 'java=' + java.util.regex.Matcher.quoteReplacement(path))
+
+        // game= too, when a copy of the game can be found -- because this file is only ever written
+        // once, and the ONE time it gets written again is right after somebody has deleted build/,
+        // which is exactly when the hand-added game= line has just been lost as well.
+        //
+        // This happened for real on 2026-09-07: a clean rebuild removed build/ and took build/game/
+        // with it, destroying the only local copy of client-240-6 -- the build offsets.hpp was
+        // measured against -- along with the edited ini that pointed at it. Nothing in the tree
+        // noticed, because build/ is by definition disposable and nobody had ever said the game must
+        // not live there.
+        def game = [file('game/osclient.exe'),
+                    layout.buildDirectory.file('game/osclient.exe').get().asFile].find { it.exists() }
+        if (game) {
+            String rel = distDir.get().asFile.toPath().relativize(game.toPath()).toString()
+            text = text + System.lineSeparator() + 'game=' + rel + System.lineSeparator()
+            logger.lifecycle("  game=${rel}")
+        }
         target.text = text
 
         // Say what actually landed in the file, not what we meant to put there -- the whole failure
@@ -171,6 +207,21 @@ tasks.register('dist') {
         // the launcher and no DLL at all, and every tool in the chain reported success -- MSBuild built
         // both projects it was given, and Gradle saw a zero exit. The only thing that noticed was
         // looking in the directory. So: look in the directory.
+        // A copy of the game is not a build output and MUST NOT live under build/, which every
+        // clean deletes. Say so while the evidence is in front of whoever is reading the build log,
+        // rather than at the moment the launcher cannot start. Warn, never fail: building with no
+        // local copy of the game is perfectly legitimate.
+        def gameHere = file('game/osclient.exe')
+        def gameInBuild = layout.buildDirectory.file('game/osclient.exe').get().asFile
+        if (gameInBuild.exists() && !gameHere.exists()) {
+            logger.warn("WARNING: your copy of the game is under build/, at " + gameInBuild)
+            logger.warn("Every clean build deletes build/, and that is how the only local copy of")
+            logger.warn("client-240-6 -- the build offsets.hpp was measured against -- was lost on")
+            logger.warn("2026-09-07. Move it to " + gameHere + " instead.")
+            logger.warn("osclient.exe is gitignored anywhere in the tree, and writeIni points game=")
+            logger.warn("at whichever of the two it finds.")
+        }
+
         def required = ['KewlKlient.exe', 'kewlklient.dll', 'kewlklient.jar', 'kewlklient.ini']
         def missing = required.findAll { !distDir.get().file(it).asFile.exists() }
         if (missing) {
@@ -195,7 +246,7 @@ tasks.register('run', Exec) {
         if (!exe.exists()) {
             throw new GradleException("KewlKlient.exe was not built. Look for the CMake error above this.")
         }
-        logger.lifecycle("\n  Start OSRS and log in, then press LAUNCH OSRS CLIENT NOW.\n")
+        logger.lifecycle("\n  Press '+ client' in the launcher to start, inject and embed the game, then log in.\n")
     }
 
     commandLine distDir.get().file('KewlKlient.exe').asFile.absolutePath

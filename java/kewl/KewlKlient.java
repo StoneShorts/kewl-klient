@@ -1,17 +1,17 @@
 package kewl;
 
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-
-import javax.swing.SwingUtilities;
 
 import kewl.api.Game;
 import kewl.api.Skills;
-import kewl.ui.Sidebar;
+import kewl.ui.SidePanel;
 
 /**
  * The client.
@@ -29,15 +29,54 @@ public final class KewlKlient {
 
     private KewlKlient() {}
 
+    // Before anything else: under Wine the JDK's own SecureRandom dies in entropy collection
+    // (see WineRandomProvider), and the first plugin's static initializer is where that death
+    // would happen -- so the substitute provider must be in place before the list below is built.
+    static {
+        try {
+            java.security.Security.insertProviderAt(new WineRandomProvider(), 1);
+        } catch (Throwable t) {
+            System.out.println("[kewl] WineRandomProvider not installed: " + t);
+        }
+    }
+
     /**
      * Every plugin, in the order they appear in the control panel.
      *
      * <p><b>Add yours here.</b> One line.</p>
      */
     private static final List<Plugin> PLUGINS = new ArrayList<>(List.of(
-            new kewl.plugins.PlayerVisuals(),
-            new kewl.plugins.NpcVisuals(),
-            new kewl.plugins.Woodcutter()
+            // The two kewl box drawers were the worked examples that proved the overlay; the RuneLite
+            // ports below (NPC Indicators / Player Indicators) are the real visuals now, so these are
+            // marked developer -- still here, still switchable, just under the panel's Developer
+            // heading instead of at the top of the list. markDeveloper() rather than an override so
+            // the plugin classes stay untouched (kewl.Plugin.developer()).
+            new kewl.plugins.PlayerVisuals().markDeveloper(),
+            new kewl.plugins.NpcVisuals().markDeveloper(),
+            new kewl.plugins.Woodcutter(),
+            new kewl.rl.RlitePlugin("Shortest Path", "Pathfinder over the world map, with auto-walk",
+                    shortestpath.ShortestPathPlugin::new),
+            // RuneLite ports over the shim's actor surface (net.runelite.client.plugins.*). Opt-in
+            // until seen live -- kewl's own NpcVisuals/PlayerVisuals stay the default-on box drawers.
+            new kewl.rl.RlitePlugin("NPC Indicators", "Highlight NPCs by name or id: hull box, tile, true tile, name",
+                    net.runelite.client.plugins.npchighlight.NpcIndicatorsPlugin::new),
+            new kewl.rl.RlitePlugin("Player Indicators", "Names over players, coloured by own/others",
+                    net.runelite.client.plugins.playerindicators.PlayerIndicatorsPlugin::new),
+            // Kept until Shortest Path has been seen working in-game: if it misbehaves, this
+            // minimal shim smoke test isolates whether the fault is the port or the shim.
+            new kewl.rl.RlitePlugin("Test Rlite", "Shim smoke test: config, events, overlay",
+                    kewl.rl.TestRlite::new).markDeveloper(),
+            // Appended at the END: panel edit indices are positional (docs/plugin-system.md).
+            new kewl.rl.RlitePlugin("Test Actors",
+                    "Shim smoke test: NPC/player actors, hull, name text, spawn events",
+                    kewl.rl.TestActors::new).markDeveloper(),
+            // Autologin: types ~/.kewlklient/autologin.properties into the title screen. Off by
+            // default and NOT in defaultOn() -- a plugin that types a password is switched on by the
+            // user once; the profile remembers the switch. Appended LAST: bridge indices are positional.
+            new kewl.plugins.AutoLogin(),
+            // Anti-idle: a camera-key tap every few minutes so the server does not log the account
+            // out (seen live 2026-09-06). Off by default; appended after AutoLogin (positional indices).
+            new kewl.plugins.AntiIdle()
     ));
 
     // The overlay image, reused between frames. Reallocating eight megabytes thirty times a second
@@ -46,28 +85,125 @@ public final class KewlKlient {
     private static int[] pixels;
     private static int canvasWidth, canvasHeight;
 
+    /**
+     * Every plugin, in panel order, read-only. The {@code kewl.panel.PanelBridge} JNI surface walks
+     * this to build the model the launcher process renders; index stability here is load-bearing,
+     * because that is how an edit record names its plugin.
+     *
+     * <p>Once a {@link kewl.plugin.PluginManager} is installed this is its live list -- the built-ins
+     * plus anything the hub registers during the session. Before that (the bare test suite, the
+     * instant before start-up) it is the built-in list itself, because something has to answer before
+     * start() runs.</p>
+     */
+    public static List<Plugin> plugins() {
+        kewl.plugin.PluginManager m = kewl.plugin.PluginManager.instance();
+        return m != null ? m.plugins() : Collections.unmodifiableList(PLUGINS);
+    }
+
+    /**
+     * Where the client keeps its state: profiles, installed hub plugins, the hub's configuration.
+     * {@code kewl.data.dir} overrides it (the tests point it at a temp directory); otherwise it is
+     * {@code .kewlklient} under the user's home, which under Wine resolves to the Windows profile the
+     * JVM starts with, and on Linux to the obvious place.
+     */
+    public static java.nio.file.Path dataDir() {
+        String prop = System.getProperty("kewl.data.dir");
+        if (prop != null && !prop.isBlank()) return java.nio.file.Path.of(prop);
+        return java.nio.file.Path.of(System.getProperty("user.home", "."), ".kewlklient");
+    }
+
+    // Which process draws the control panel. Java (SidePanel) is the default, exactly as it has always
+    // been; the launcher sets ImGui mode before the first tick, and from then on this process draws
+    // only overlays -- the panel pixels belong to the launcher's software rasterizer. See PanelBridge
+    // for how the data crosses the process boundary.
+    private static volatile boolean imguiPanel;
+
+    /** Hand the panel to the ImGui launcher (true) or draw it here in Java (false, the default). */
+    public static void setPanelMode(boolean imgui) { imguiPanel = imgui; }
+
+    /** Whether the ImGui launcher owns the panel right now. */
+    public static boolean isImGuiPanel() { return imguiPanel; }
+
     /** Called once by the native side after the VM starts. */
     public static void start() {
         System.out.println("KewlKlient: " + PLUGINS.size() + " plugins");
 
-        // Anything a plugin wants on by default, it says so here rather than in its constructor, so
-        // "what is on when I start" is one list rather than a hunt through every plugin.
+        // The order here is the order the state flows: the profile store first (it wants to be the
+        // Setting persistence sink before any plugin can set anything), then the manager over the
+        // built-in registry -- registering each one applies whatever the active profile says about it
+        // -- then the hub, which reloads installed external plugins in the background. Only after all
+        // of that does the "what is on when I start" list run, and even then only where the profile
+        // has no opinion: a stored "off" must beat a code default, or profiles would quietly lose
+        // every plugin the user turned off.
+        kewl.profile.ProfileManager.install(dataDir());
+        kewl.profile.ProfileManager profiles = kewl.profile.ProfileManager.instance();
+        kewl.plugin.PluginManager.install(PLUGINS, profiles);
+        kewl.plugin.hub.Hub.install(kewl.plugin.PluginManager.instance(), dataDir());
+
         for (Plugin p : PLUGINS) {
-            if (p instanceof kewl.plugins.PlayerVisuals || p instanceof kewl.plugins.NpcVisuals) {
-                p.setEnabled(true);
-            }
+            if (defaultOn(p) && !profiles.hasStoredEnabled(p)) p.setEnabled(true);
         }
 
-        // Swing has to be built on its own thread. The render loop never touches it again -- the panel
-        // polls, rather than the loop pushing, precisely so these two threads share nothing.
-        SwingUtilities.invokeLater(() -> {
-            try {
-                Sidebar.open(PLUGINS);
-            } catch (Throwable t) {
-                System.out.println("KewlKlient: control panel failed to open: " + t);
-            }
-        });
+        SidePanel.setPlugins(plugins());
+
+        // The process dies when the game does, with no warning and no native shutdown call -- so a
+        // JVM hook is the last chance the profile store gets. Daemon threads would not run it; this
+        // one is not a daemon, and its whole job is one small file write.
+        Runtime.getRuntime().addShutdownHook(new Thread(KewlKlient::shutdown, "kewl-shutdown"));
     }
+
+    /**
+     * Anything a plugin wants on by default, it says so here rather than in its constructor, so "what
+     * is on when I start" is one list rather than a hunt through every plugin.
+     */
+    private static boolean defaultOn(Plugin p) {
+        // The RuneLite-style indicators are the default visuals since 2026-09-06 (hull, name and
+        // tile at each entity's real height); kewl's own NpcVisuals/PlayerVisuals stay in the list
+        // as the README's worked examples, off unless switched on.
+        return p.name().equals("NPC Indicators") || p.name().equals("Player Indicators");
+    }
+
+    /**
+     * Last chance for state to reach disk. The plugin manager's shutdown disables every live plugin
+     * (their {@code onDisable} may be the thing that stops a timer or closes a file), and the profile
+     * store flushes whatever the debounce had not got to yet.
+     */
+    public static void shutdown() {
+        try {
+            kewl.plugin.PluginManager m = kewl.plugin.PluginManager.instance();
+            if (m != null) m.shutdown();
+        } catch (Throwable t) {
+            System.out.println("[kewl] shutdown: plugin manager threw: " + t);
+        }
+        try {
+            kewl.profile.ProfileManager p = kewl.profile.ProfileManager.instance();
+            if (p != null) p.flush();
+        } catch (Throwable t) {
+            System.out.println("[kewl] shutdown: profile flush threw: " + t);
+        }
+    }
+
+    /**
+     * One mouse event on the panel's own window, forwarded from the native side. Coordinates are the
+     * panel's local space -- the native side positions that window exactly panel-sized, so no
+     * conversion happens anywhere. Runs on the overlay thread (the same thread that owns the window),
+     * before the next frame's render picks the state up.
+     */
+    public static void panelMouse(int x, int y, int button, boolean down) {
+        try {
+            SidePanel.mouse(x, y, button, down);
+        } catch (Throwable t) {
+            System.out.println("[panel] mouse threw: " + t);
+        }
+    }
+
+    private static int frames;
+
+    /**
+     * How many frames have run: a frame-identity token that cannot repeat, unlike anything read from
+     * game memory. Used to tell "this frame's snapshot" from a stale one.
+     */
+    public static int frame() { return frames; }
 
     /**
      * One frame: read the world, run the plugins, draw, and hand the result back to be shown.
@@ -75,17 +211,19 @@ public final class KewlKlient {
      * @param keys bitmask of function keys pressed since the last frame; bit 0 is F1, bit 7 is F8
      */
     public static void tick(int keys) {
+        Plugin.drainLater();
+        frames++;
         Skills.newFrame();
         Game.refresh();
 
         if (keys != 0) {
-            for (Plugin p : PLUGINS) {
+            for (Plugin p : plugins()) {
                 int k = p.hotkey();
                 if (k >= 0 && k < 8 && (keys & (1 << k)) != 0) p.toggle();
             }
         }
 
-        for (Plugin p : PLUGINS) {
+        for (Plugin p : plugins()) {
             if (!p.isEnabled()) continue;
             try {
                 p.tick();
@@ -118,8 +256,12 @@ public final class KewlKlient {
 
         Graphics2D g = canvas.createGraphics();
         try {
-            Sidebar.prettyText(g);
-            for (Plugin p : PLUGINS) {
+            // Antialiased text everywhere, which is the difference between "styled" and "1998".
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+
+            for (Plugin p : plugins()) {
                 if (!p.isEnabled()) continue;
                 try {
                     p.render(g);
@@ -132,12 +274,24 @@ public final class KewlKlient {
         }
 
         Natives.present(pixels, w, h);
+
+        // The panel draws itself into its own small image and presents it through presentPanel; it is
+        // a second layered window, so plugins' pixels and panel pixels never fight over a frame --
+        // unless the launcher owns the panel, in which case drawing it here would put a Java panel and
+        // an ImGui one on the same pixels. In that mode the SidePanel window does not exist at all and
+        // the DLL never calls panelMouse; the data crosses to the launcher through PanelBridge.
+        if (imguiPanel) return;
+        try {
+            SidePanel.frame(h);
+        } catch (Throwable t) {
+            System.out.println("[panel] render threw: " + t);
+        }
     }
 
     /** One line per enabled plugin. The native side shows this if Java is up but nothing has drawn. */
     public static String status() {
         StringBuilder sb = new StringBuilder();
-        for (Plugin p : PLUGINS) {
+        for (Plugin p : plugins()) {
             if (!p.isEnabled()) continue;
             sb.append(p.name());
             String s = p.status();

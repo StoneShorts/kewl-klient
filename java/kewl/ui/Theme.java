@@ -26,14 +26,53 @@ public final class Theme {
     public static final Color OFF        = new Color(120, 120, 130);
     public static final Color WARN       = new Color(255, 140, 120);
 
+    // -- RuneLite's ColorScheme, for the panel pieces that copy it view for view. Kept beside the
+    //    palette above rather than replacing it: ACCENT and the HUD colours are shared with the
+    //    overlays, and recolouring those was not the point of imitating the side panel.
+    public static final Color RL_ORANGE  = new Color(220, 138, 0);   // BRAND_ORANGE: active tab, section names, hover
+    public static final Color RL_TAB     = new Color(30, 30, 30);    // DARKER_GRAY_COLOR: tab backgrounds
+    public static final Color RL_TAB_HI  = new Color(60, 60, 60);    // DARKER_GRAY_HOVER_COLOR: tab hover
+    public static final Color RL_DIVIDER = new Color(77, 77, 77);    // MEDIUM_GRAY_COLOR: 1px section dividers
+    public static final Color RL_LABEL   = Color.WHITE;              // plugin and setting names are pure white
+
     // -- the overlay. Semi-transparent so the game stays readable underneath.
     public static final Color HUD_BACK   = new Color(20, 20, 24, 190);
     public static final Color HUD_BORDER = new Color(90, 90, 105, 190);
 
-    public static final Font UI     = new Font("Segoe UI", Font.PLAIN, 12);
-    public static final Font UI_BOLD = new Font("Segoe UI", Font.BOLD, 12);
-    public static final Font TITLE  = new Font("Segoe UI", Font.BOLD, 15);
-    public static final Font MONO   = new Font("Consolas", Font.PLAIN, 12);
+    /**
+     * Load the fonts by file rather than by name. Asking for "Segoe UI" goes through the platform's
+     * font registry, and under Wine that registry can point at fonts that are not installed, which
+     * makes every glyph in the panel render as a box. The file is right there in both cases -- a real
+     * Windows machine and a Wine prefix both have segoeui.ttf in the same place -- so read it directly
+     * and skip the registry entirely.
+     */
+    private static Font fromFile(String[] paths, String fallbackName) {
+        for (String p : paths) {
+            try {
+                return Font.createFont(Font.TRUETYPE_FONT, new java.io.File(p));
+            } catch (Throwable ignored) {
+                // try the next candidate
+            }
+        }
+        return new Font(fallbackName, Font.PLAIN, 12);
+    }
+
+    private static final Font SANS = fromFile(new String[]{
+            "C:\\Windows\\Fonts\\segoeui.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "Z:\\usr\\share\\fonts\\truetype\\dejavu\\DejaVuSans.ttf",
+    }, Font.SANS_SERIF);
+
+    private static final Font MONO_BASE = fromFile(new String[]{
+            "C:\\Windows\\Fonts\\consola.ttf",
+            "C:\\Windows\\Fonts\\cour.ttf",
+            "Z:\\usr\\share\\fonts\\truetype\\dejavu\\DejaVuSansMono.ttf",
+    }, Font.MONOSPACED);
+
+    public static final Font UI      = SANS.deriveFont(Font.PLAIN, 12f);
+    public static final Font UI_BOLD = SANS.deriveFont(Font.BOLD, 12f);
+    public static final Font TITLE   = SANS.deriveFont(Font.BOLD, 15f);
+    public static final Font MONO    = MONO_BASE.deriveFont(Font.PLAIN, 12f);
 
     /** The same colour at a different opacity. Handy for "fill faintly, outline solid". */
     public static Color alpha(Color c, int a) {

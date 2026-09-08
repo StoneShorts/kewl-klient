@@ -1,0 +1,68 @@
+NOTICE for the ported Shortest Path plugin
+==========================================
+
+The sources under java/shortestpath/ and the data resources under resources/
+(collision-map.zip, transports/, destinations/, leagues/, marker.png) come from
+the "shortest-path" RuneLite plugin:
+
+  https://github.com/Zoinkwiz/shortest-path  (this fork)
+  https://github.com/Skretzo/shortest-path   (original)
+
+Licence: BSD 2-Clause. The upstream LICENSE file ships alongside this notice as
+resources/LICENSE-shortest-path. It is reproduced here as required:
+
+  Copyright (c) <YEAR>, <COPYRIGHT HOLDER>
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
+
+(A note on the copyright line above: it is not a placeholder we forgot to fill in. The upstream
+repository's own LICENSE file -- added there by Runemoro in October 2020 -- carries
+"Copyright (c) <YEAR>, <COPYRIGHT HOLDER>" verbatim, and no upstream file names a copyright holder,
+so there is no real line to copy and we will not invent one. The file alongside this notice is a
+byte-for-byte copy of upstream's. The work belongs to the shortest-path authors named in the repos
+above -- Skretzo (original) and Zoinkwiz and the fork's contributors -- and BSD-2's requirement is
+met by keeping their licence text with the sources and this attribution.)
+
+Also vendored, from RuneLite (https://github.com/runelite/runelite, BSD
+2-Clause): the net.runelite.api.gameval constant tables and small utility
+classes under net/runelite/client/util/.
+
+Modifications from upstream
+---------------------------
+- Client interaction is re-pointed at KewlKlient's net.runelite API shim
+  (java/net/runelite/) instead of RuneLite's injected client.
+- PathTileOverlay's scene-tile enumeration loop reads the bundled
+  CollisionMap instead of client Tile objects.
+- Auto-walk support added (upstream is guidance-only).
+
+Tests not ported
+----------------
+Three upstream test sources are omitted from java-test/shortestpath/:
+ShortestPathPluginTest.java, PluginMessageTest.java and
+PluginMessageTestPlugin.java. They bootstrap a full RuneLite client
+(RuneLite.main / ExternalPluginManager) to exercise the plugin's own
+integration points; the kewl shim has no RuneLite application to bootstrap,
+so those tests have no meaning here. The remaining 270+ upstream tests run
+unchanged, plus a shim smoke test (Lumbridge to Varrock over the bundled
+collision map).

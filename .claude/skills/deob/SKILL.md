@@ -40,19 +40,75 @@ from last month's build. Ghidra keeps its project. After any update, verify the 
 the header is the *oldest* value, not the running one. Check what actually applies before quoting a
 number — this specific mistake has cost real days on projects like this.
 
+## Getting the binary (no Windows needed)
+
+The official client is fetched straight from Jagex's Akamai CDN — all plain GETs:
+
+1. `https://jagex.akamaized.net/direct6/osrs-win/alias.json` — a **signed JWT**; decode the payload
+   (ignore the signature), read `osrs-win.production` → a 64-hex digest naming the current release.
+2. `https://jagex.akamaized.net/direct6/osrs-win/metafile/<digest>/metafile.json` — also a JWT; its
+   payload has `files` (name + size), `pieces.digests` (base64 sha256s) and `version`
+   (e.g. `client-240-6` — this is what goes in BUILD_ID).
+3. `https://jagex.akamaized.net/direct6/osrs-win/pieces/<aa>/<digest>.solidpiece` per piece, where
+   `aa` is the digest's first two hex chars. Each piece: strip the first **6 bytes** (Solid State
+   Networks header), gunzip it (some pieces are plain — skip gunzip errors), and sha256-verify
+   against the digest.
+4. Concatenate the decompressed pieces **in metafile order** and split sequentially by each file's
+   `size`. That yields `osclient.exe` (and whatever ships beside it).
+
+This runs on Linux with nothing but Python. The launcher itself lives at `direct6/launcher-win/`
+under the same scheme, but its alias.json is plain JSON rather than a JWT.
+
 ## The workflow
 
-```powershell
-# 1. First time, or after a game update: analyse the binary (slow once, cached after)
-.\tools\ghidra_headless.ps1 -Ghidra "C:\ghidra_11.4" -Script FindOffsets.java
+```bash
+# 0. Fetch the current client (see above), record its sha256 — this is your BUILD_ID evidence.
+
+# 1. First time, or after a game update: analyse the binary (slow once, cached after).
+#    Ghidra headless runs natively on Linux; the PowerShell wrapper is a Windows convenience.
+/opt/ghidra_*/support/analyzeHeadless /tmp/ghidra-proj osrs -import osclient.exe \
+    -scriptPath tools/ghidra_scripts -postScript FindOffsets.java
 
 # 2. Read the result
-type tools\offsets_found.txt
+cat tools/offsets_found.txt
 ```
 
 `FindOffsets.java` prints, for each binding name, the functions that reference it. That referencing
-function is the **registration**, not the leaf you want — open it and find the function pointer it
+function is the **registration**, not the thing itself — open it and find the function pointer it
 registers next to the name. That pointer is your target.
+
+### The two registration shapes (sol2)
+
+Reading the registration is where the real information is. The binding layer registers in two shapes,
+and each hides the leaf differently:
+
+1. **Label thunks** (ClientState usertype: getVarp, getVarbit, the stat getters). The registration
+   calls `FUN_140101570(state, table, &LAB_1400f8b10)` — the third argument is the leaf, but it lives
+   at a *jump-target label* Ghidra did not promote to a function, so it shows up as `LAB_...` inside
+   the registration's own body. Disassemble the label's address range directly (`objdump -d
+   --start-address=... --stop-address=...` works fine on the PE); the leaves are tiny — the whole
+   getVarp leaf is three instructions ending in `ret`.
+2. **Closures** (Graphics, inventory bindings). The registration stores a real function pointer into
+   a closure struct beside the name: `local_638 = FUN_1401ab070` next to `FUN_14004d140(&x,
+   "invGetObjId")`. That function is a **Lua trampoline** — it pulls arguments off the Lua stack and
+   calls the actual implementation one hop deeper (`FUN_1401ab070` → `FUN_140032610`). Follow that
+   last call; the trampoline itself tells you nothing about memory layout.
+
+What the leaves read is the payoff. The getVarp leaf is `mov rax, [rip+X]; movsxd rcx, edx; mov eax,
+[rax+rcx*4]` — that single line names the varp array's global. The inventory leaves name the whole
+container table: bucket array, bucket count, node layout (id, item-id span, quantity span, next),
+including the 4-bytes-per-entry item arrays. This is how struct fields should be derived: read them
+off a function the client wrote, not guessed from a dump.
+
+### Known dead ends on this binary
+
+- **MSVC RTTI is not there.** There are no `.?AV...` type descriptors for the binding classes; the
+  `ctti_get_type_name<T>` strings belong to functions with no inbound references Ghidra can see, so
+  the "find the usertype registration via its ctti function" approach goes nowhere.
+- **Names that look like bindings but are not.** `worldid` is a launch-argument parser ("jagex://v",
+  "mem", "contentmode" surround it); `worldToScreenCoord` in the *Graphics* usertype is a drawing
+  helper, though its closure body turned out to be the projection leaf we wanted. Check the strings
+  around a hit before trusting what a name means.
 
 Then put the RVA in `client/offsets.hpp` and **update `BUILD_ID` in the same commit**. Every number in
 that file was measured on one build; mixing values from two builds is how you get a crash that looks

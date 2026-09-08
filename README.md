@@ -1,43 +1,58 @@
 # KewlKlient
 
-A small, readable OSRS client with a plugin panel, entity visuals, and a worked example bot — in about
-two thousand lines you can hold in your head.
+A small, readable OSRS client with a plugin panel, entity visuals, and a worked example bot.
 
-It exists to be **learned from and hacked on**. There is no auto-updater, no account manager, no plugin
-store. What there is:
+It exists to be **learned from and hacked on**. The core — the API, the plugin model, the config
+system, the drawing — is still the few thousand lines of `java/kewl/` you can hold in your head; the
+bulk of the repo is the vendored Shortest Path plugin and the RuneLite API shim it runs on, which you
+never have to read. There is no auto-updater and no account manager. The plugin hub is a manifest
+endpoint you point it at, not a store of ours. What there is:
 
-- **Everything is Java.** Plugins, settings, the control panel, and all the drawing. No C++ toolchain
-  needed to write a bot or an overlay.
+- **Everything is Java.** Plugins, settings, profiles, and all the drawing. No C++ toolchain needed
+  to write a bot or an overlay.
 - **Overlays are plain Java2D.** Your plugin gets a `Graphics2D` over the game window and draws whatever
   it likes — shapes, alpha, antialiased text, images. Nothing had to expose a "draw box" primitive.
 - **Settings build their own UI.** Declare a setting; the control panel grows the right widget for it.
-  No plugin writes a line of Swing.
+  No plugin writes a line of UI code.
+- **Your state survives a restart.** Enabled states, settings, pins and profiles are persisted under
+  `~/.kewlklient` — plugins declare nothing, do nothing, and get it for free.
 - **No network code at all.** We never build a packet. We call the game's own "do this menu action"
   function and let it build and send the packet. That is the single biggest reason this codebase is
-  small, and the reason it survives most game updates.
-- **Ten native methods.** That is the entire unsafe surface, all in one file.
+  small, and the reason it survives most game updates. (The one exception is the optional plugin
+  hub, which fetches a manifest you point it at — see
+  [docs/plugin-system.md](docs/plugin-system.md).)
+- **Twenty-five native methods.** That is the entire unsafe surface, all in one file
+  (`java/kewl/Natives.java` — the four input-injection ones, `postChar`/`postKey`/`postMouse`/
+  `inputTarget`, are part of that count: they are how autologin types your password).
 
 ```
-       launcher                       injected into the game
+       launcher (ImGui)               injected into the game
     ┌──────────────┐                ┌────────────────────────────────┐
-    │  one button  │ ── inject ──>  │  kewlklient.dll                │
-    └──────────────┘                │    reads memory                │
-                                    │    starts a JVM ───────────────┼──> kewlklient.jar
-                                    │    10 natives ─────────────────┼──>   api + your plugins
-                                    │  <── one finished image/frame ─┼──    overlays (Java2D)
-                                    └────────────────────────────────┘        control panel (Swing)
+    │  "+ client"  │ ── spawn ───>  │  osclient.exe                  │
+    │              │ ── inject ──>  │  └─ kewlklient.dll             │
+    │              │                │     reads memory               │
+    │  286px ImGui │                │     starts a JVM ──────────────┼──> kewlklient.jar
+    │  panel strip │  <== shared == │     25 natives ────────────────┼──>   api + your plugins
+    │  (CPU-raster)│     memory     │  <── one finished image/frame ─┼──    overlays (Java2D)
+    └──────────────┘                └────────────────────────────────┘      plugin state (Java)
 ```
 
 **Java draws, C++ shows.** Java renders the whole overlay into an image and hands it back once a frame;
 C++ puts it on screen and otherwise stays out of the way. That inversion is why a plugin can draw
 anything Java2D can draw, and it costs one memcpy a frame.
 
+**Java owns the state, C++ shows the panel.** The ImGui strip is a view: it renders a snapshot of the
+plugin model that Java publishes into shared memory, and every click comes back as an edit record that
+Java applies through the same paths its own panel uses. There is no second copy of plugin state in
+C++.
+
 ---
 
 ## Quick start
 
 **Windows only.** The whole thing is Win32 — there is no Linux or Mac build and there is not going to be
-one.
+one. (On a Linux desktop you can still run the game itself under Wine and test the whole stack there;
+[`tools/wine.md`](tools/wine.md) is the recipe.)
 
 You need three things installed. The first two you probably have; the third is the one people miss:
 
@@ -53,8 +68,9 @@ You do **not** need Gradle — the wrapper in this repo fetches it.
 
 1. **File → Open** and pick the folder you cloned. It imports as a Gradle project.
 2. Pick the **KewlKlient** run configuration (it is checked into the repo) and press **Run**.
-3. Start OSRS and **log in**.
-4. In the little window that appeared, press **LAUNCH OSRS CLIENT NOW**.
+3. In the ImGui launcher that appeared, press **+ client**. It starts `osclient.exe`, injects the DLL
+   and puts the game inside the launcher's own window.
+4. **Log in.**
 
 That is it — no config file to edit. The build points `kewlklient.ini` at whichever JDK IntelliJ is
 using, and puts everything in `build\dist\`.
@@ -68,7 +84,14 @@ gradlew run
 Same thing. `gradlew dist` builds without launching, and `build.bat` is a wrapper around it for people
 who prefer a double-click.
 
-A **control panel** opens beside the game with a switch and settings for every plugin. The same plugins
+The launcher needs to know where the game is: set `game=` in `build\dist\kewlklient.ini` (relative
+paths resolve against the exe). `build\dist\KewlKlient.exe --launch` presses **+ client** for you, and
+`KEWL_LOG=<file>` in the environment collects the launcher's, the DLL's and Java's diagnostics in one
+file -- the DLL is built for one exact game build (`client/offsets.hpp`, `BUILD_VERSION`) and refuses
+any other, saying so on screen and in that log.
+
+A **panel strip** opens down the right-hand side of the game with a switch, a pin and settings for
+every plugin — plus tabs for profiles, the plugin hub and bridge debug info. The same plugins
 have hotkeys:
 
 | key | does |
@@ -76,7 +99,17 @@ have hotkeys:
 | F1 | player visuals on/off |
 | F2 | NPC visuals on/off |
 | F5 | the woodcutter on/off |
-| F3, F4, F6–F8 | free, for your plugins |
+| F7 | autologin: on at the title screen = login now; on while running = abort |
+| F3, F4, F6, F8 | free, for your plugins |
+
+Default-on plugins are **NPC Indicators** (every NPC in range: hull and name; narrow it with the list)
+and **Player Indicators** (names over you and other players); the kewl `NpcVisuals`/`PlayerVisuals`
+examples stay in the list, off. **Anti-idle** taps a camera key every few minutes so the server does
+not log the account out; pair it with Autologin's "Log in again after a disconnect" for a session that
+also survives the disconnects it cannot prevent.
+
+That table covers the built-ins only. The five `RlitePlugin` entries in the registry below declare no
+hotkey; a ported RuneLite plugin's keys come from its own keybind settings, not this table.
 
 If nothing appears, see [Troubleshooting](#troubleshooting).
 
@@ -127,17 +160,43 @@ private static final List<Plugin> PLUGINS = new ArrayList<>(List.of(
         new kewl.plugins.PlayerVisuals(),
         new kewl.plugins.NpcVisuals(),
         new kewl.plugins.Woodcutter(),
-        new kewl.plugins.CowSpotter()          // <- yours
+        new kewl.plugins.CowSpotter(),         // <- yours
+        new kewl.rl.RlitePlugin("Shortest Path", "Pathfinder over the world map, with auto-walk",
+                shortestpath.ShortestPathPlugin::new),
+        new kewl.rl.RlitePlugin("NPC Indicators", "Highlight NPCs by name or id: hull box, tile, true tile, name",
+                net.runelite.client.plugins.npchighlight.NpcIndicatorsPlugin::new),
+        new kewl.rl.RlitePlugin("Player Indicators", "Names over players, coloured by own/others",
+                net.runelite.client.plugins.playerindicators.PlayerIndicatorsPlugin::new),
+        new kewl.rl.RlitePlugin("Test Rlite", "Shim smoke test: config, events, overlay",
+                kewl.rl.TestRlite::new),
+        new kewl.rl.RlitePlugin("Test Actors", "Shim smoke test: NPC/player actors, hull, name text, spawn events",
+                kewl.rl.TestActors::new),
+        new kewl.plugins.AutoLogin(),          // types your login (panel settings or autologin.properties) at the title screen
+        new kewl.plugins.AntiIdle()            // a camera-key tap every few minutes so the server does not log you out
 ));
 ```
 
+The `RlitePlugin` lines are not hand-written plugins but the shim pattern: an adapter
+(`kewl.rl.RlitePlugin`) hosting a plugin ported off RuneLite's API — Shortest Path, and RuneLite's
+own NPC Indicators and Player Indicators ported source-shaped onto the shim's actor API
+(`java/net/runelite/client/plugins/`). They are ordinary registry entries — panel, settings,
+profiles and all — and the reason the real list has ten lines, not five. The two Indicators ports
+are the **default-on** visuals since 2026-09-06, when hull, name and tile were seen sitting at each
+entity's real height in-game (kewl's own `NpcVisuals`/`PlayerVisuals` stay in the list as this
+README's worked examples, off unless you switch them on). They say in each setting's description
+what the shim approximates; what RuneLite offers but the client cannot read yet (menu recolouring,
+outlines, respawn timers, friend/clan colours) is omitted from their panels rather than shown dead.
+
 Rebuild, restart the client. Your plugin is in the panel with a range slider and a colour picker you
-never wrote. **That list is the entire plugin system** — no scanning, no annotations, no manifest,
-nothing that can silently fail to find your class.
+never wrote, and its state is saved with everyone else's. **That list is the entire plugin system** —
+no scanning, no annotations, no manifest, nothing that can silently fail to find your class.
 
 **Read [`Woodcutter.java`](java/kewl/plugins/Woodcutter.java) next.** It is the worked example and does
-all four things at once: settings, a decision loop that acts on the game, a world overlay, and a
-statistics panel.
+all four things at once: settings, a decision loop that drives the game's action API, a world overlay,
+and a statistics panel.
+
+Every setting type, the profile model, and how to ship a plugin through the hub instead of the list
+are in [`docs/plugin-system.md`](docs/plugin-system.md).
 
 ### The two methods
 
@@ -184,10 +243,27 @@ Actions.walkTo(x, y)
 Actions.object(treeId, x, y)          // chop / mine / open
 Actions.npc(entity)                   // first option
 Actions.npc(entity, 2)                // second option
+
+// kewl.api.Input -- typing and clicking, by posting messages to the game window
+Input.typeChar(c)                     // one character, as WM_CHAR (never a key-down: see jvm.hpp)
+Input.key(Input.VK_TAB, down)         // Tab / Enter / Backspace as KEYDOWN / KEYUP
+Input.mouseDown(x, y)                 // canvas coordinates; honoured on client-240-6 (the autologin Login click is the proof)
+Input.target(grab)                    // where it goes: exists / render view / focused / foreground / size
 ```
 
+**Through the RuneLite shim** (for ported plugins, `net.runelite.api`), the same snapshot is reachable
+in RuneLite's own shape -- `client.getNpcs()`, `client.getPlayers()` (you included), `wv.npcs()` /
+`wv.players()` as `IndexedObjectSet`s, and `NpcSpawned`/`NpcDespawned`/`PlayerSpawned`/`PlayerDespawned`
+events. Each `NPC`/`Player` is an `Actor` with a stable identity per handle across ticks, and offers
+`getLocalLocation()` (the fine render position), `getWorldLocation()` (the local player's plane),
+`getCanvasTilePoly()` / `getCanvasTextLocation()` / `getConvexHull()` at the actor's own ground height,
+plus `OverlayUtil.renderActorOverlay`. What is approximated or defaulted, and says so in its javadoc:
+the convex hull (a prism, no model access), the logical height (a tuning constant, `Actor.logicalHeight`),
+combat level 0, NPC size 1, and names that may read `""` until the name offset is confirmed on this build.
+
 **Two coordinate systems, and mixing them up is the most common bug here.** World coordinates are what
-your minimap shows (Lumbridge ≈ 3222, 3218). Scene coordinates are 0–104 within the loaded chunk, and
+your minimap shows (Lumbridge ≈ 3222, 3218). Scene coordinates are 0–103 within the loaded chunk (it
+is 104 tiles a side, so 104 is one past the edge — `Game.toScene` returns null for it), and
 they are what the game's click function actually wants. Everything a plugin touches is in **world**
 coordinates; the conversion happens in one place.
 
@@ -212,26 +288,266 @@ right perspective and stay correct while the camera turns.
 
 ---
 
+## Autologin
+
+The **Autologin** plugin (`kewl.plugins.AutoLogin`, last in the registry, off by default) types your
+account into the title screen. The credentials come from one of two places, checked afresh on every
+attempt:
+
+1. **The panel.** The first two settings on the plugin's config page are `Username` and `Password`
+   — type them into the AutoLogin settings in the panel (the ImGui strip of the launcher; the
+   direct-inject Java2D panel shows them but cannot edit text yet). The password field is a
+   password field: masked as you type, masked wherever either panel shows it, and never printed.
+   Like every setting, both are saved by the profile store into
+   `~/.kewlklient/profiles/<id>/config.json` — local, outside the repository, but on disk. Both
+   must be filled in for the panel to be used; a half-filled panel falls back to the file.
+   **The field holds 63 UTF-8 bytes**, the width of the bridge's `valueText` string (format 2), and
+   refuses the next one rather than accepting a value it could not publish back. A longer password
+   goes in the file below; widening the string is a bridge format 3 change.
+2. **The file**, for anyone who would rather keep the password out of the profile. In the client's
+   data directory (`KewlKlient.dataDir()` — `~/.kewlklient`, i.e. `C:\Users\<you>\.kewlklient` on
+   Windows):
+
+```
+~/.kewlklient/autologin.properties
+
+username=
+password=
+```
+
+Fill the two values in after the `=`. Everything after the first `=` is the value, verbatim — a
+backslash is a backslash, not an escape — with only surrounding whitespace trimmed. Lines starting
+with `#` are comments.
+
+**Both places are local.** Nothing under `~/.kewlklient` is tracked, and neither the properties
+file nor a profile's `config.json` must ever be committed, pasted into an issue, or attached to a
+log. The plugin itself never prints a character of either value, and never a length: every log line
+and the status column say only where the credentials came from and whether each is set
+(`credentials: panel, username set, password set` / `credentials: file, username set, password
+empty`). The `Password` setting is a `config.secret` (see `kewl.config.Config`): the same TEXT
+setting underneath, flagged so that both panels mask it and the launcher edits it in a password-mode
+field.
+
+**What "masked" does not mean.** Masking is about what is *drawn*, not about where the bytes live.
+Two places hold the password in clear, both under the same trust boundary — any process running as
+you can read them, nothing else can:
+
+- a profile's `config.json`, if you used the panel settings (that is the trade the panel makes);
+- the **shared-memory bridge**, while the game is running and only if you used the panel settings.
+  The strip is a separate process, so a text setting's value has to cross to it: the model region
+  (`Local\KewlKlientBridge-<gamePid>`) carries the setting's `valueText` in clear so the ImGui field
+  can round-trip it, and anything else running in your session can `OpenFileMappingW` that name and
+  read it for the life of the game process. A committed edit passes through the edit ring too, but
+  only for the frame it takes to apply: the DLL wipes the slot before bumping the tail. (Review
+  2026-09-06: the model region's copy was true but undocumented; the ring's is now transient.)
+  Nothing in the launcher ever prints
+  or copies a `FLAG_SECRET` value — password mode disables copy, and the tooltip, the debug tab and
+  the unknown-kind branch all refuse to render it — but that is a display rule, not a boundary.
+  **The file path does not cross the bridge**: leave the two panel settings empty and their
+  `valueText` is the empty string, so `autologin.properties` really does keep the password out of
+  both the profile store and shared memory.
+
+**Using it.** Switch it on in the panel or press F7. On at the title screen means "login now" (a
+0.5 s settle); on during start-up means "wait for the login screen, then type after `Settle delay`";
+pressing F7 again while it runs aborts. The profile remembers the switch, so it stays on across
+restarts once you have turned it on. The panel settings and the file are re-read at the start of
+every attempt, so filling either in while the client sits at the title screen is enough — it
+re-checks every 5 s.
+
+**After a logout.** Once logged in, the plugin stays quiet: if the title screen comes back — a
+deliberate logout looks exactly like a disconnect from the outside — it goes idle (`logged out --
+idle` in the status column) and waits for F7 / the panel toggle before typing anything again. Turn
+on `Log in again after a disconnect` (`reloginAfterDisconnect`, off by default) to have it re-type
+the login automatically whenever the title screen returns. The status panel is drawn only while
+not logged in.
+
+**Click here to play.** At state 30 the client first shows a "Welcome to Old School RuneScape /
+Welcome back" screen and the world only loads after its **CLICK HERE TO PLAY** button (seen live
+2026-09-06: not letterboxed, button centre at canvas centre − 3, top + 334). With `clickPlay` (on
+by default) the plugin clicks it once, `playDelaySec` (2 s) after state 30 arrives, logs
+`[autologin] clicked play`, and the status column shows `logged in -- clicked play`; the `play`
+crosshair is drawn until then. Only a login the plugin typed itself gets the click — a login done by
+hand while it sits idle does not. `playX` / `playY` move the target.
+
+**The flow it drives** (seen live 2026-09-06 on client-240-6): the title screen opens on a
+"Welcome to Old School RuneScape" box with New User / Existing User buttons; Existing User opens the
+form. With **"Remember username" ticked** — the default path, and what this machine has — the form
+opens with the Login field pre-filled and the caret already in the Password field. **Enter does not
+submit the form** on this build (neither a real keyboard Enter nor a posted one); clicking the Login
+button does. A rejected login shows a separate "Incorrect username or password" screen with a
+**Try again** button, and the raw game state stays 10 the whole time — a rejection is not
+distinguishable from "nothing happened" by state alone.
+
+What it does, per attempt **on the welcome screen**: settle → click Existing User → settle → 20
+backspaces (clearing the password field, where the caret already is) → password → Enter (harmless,
+kept in case another build honours it) → **click Login** → wait `Result timeout` for the game state
+to leave the login value. If the state has not moved by then, that is the rejection screen: it logs
+`no state change after Login click: assuming the rejection screen, clicking Try again`, clicks Try
+again, settles, and runs the attempt again, up to `Stop after N rejections` (2). With
+`Username remembered by the client` off it instead clicks the
+username field, backspaces, types the username, Tabs (or clicks) into the password field and goes on
+from there. Text is typed as `WM_CHAR` messages posted to the game's own render window, control keys
+as key-down/key-up, one keystroke per `Key delay` (60 ms) — never `SendInput`, so nothing can be
+typed into another application if you alt-tab away.
+
+**Which screen is up — state 10 is not one screen.** Live 2026-09-06: from a **cold start** the
+client draws the welcome box and the form only appears after the Existing User click; after a
+**disconnect** it draws the form straight away, username pre-filled, with *"Please enter your
+password"* and no welcome box at all. The old script assumed the cold start unconditionally — it
+clicked where Existing User would have been (on that screen it is not a button), typed into whatever
+had focus, submitted an empty password field twice and stopped with `rejected 2 times`. So the script
+now branches on the **screen** (`kewl.plugins.autologin.LoginScreen`), not on the state, and the two
+things it changes are all that differ: whether Existing User is clicked, and whether the password
+field is clicked before typing.
+
+The screen is decided from two sources, in order:
+
+1. **The client's loaded interface groups** (`Natives.loadedGroups()`) as a fingerprint. Widget
+   *positions* are not trustworthy on this build (see `client/offsets.hpp`: a packed id's stored x/y
+   are read as canvas coordinates with no parent-offset accumulation), but "which groups are loaded"
+   is a plain list the client hands over and it changes with the screen. `LoginScreen.KNOWN` maps a
+   fingerprint to a screen and **ships empty**: no id has been confirmed against a real screen yet,
+   and a wrong entry would make the cold start skip a click it needs. Run once with `KEWL_LOG` set
+   and the log carries one `login screen fingerprint [ids] -- ...` line per distinct screen; those
+   ids are what belongs in that map.
+2. **How the plugin got there**, used for every unknown fingerprint — i.e. all of them today. Title
+   screen reached from the loaded world = the **disconnect** screen; reached after a Try again click
+   = the **form**; anything else, a cold start above all, = the **welcome** box, which is exactly the
+   behaviour that has been working. A server bounce (20 → 10) deliberately keeps the old behaviour:
+   nobody has yet seen which screen follows one.
+
+The panel's `screen` line and the crosshairs say which is believed: on the disconnect screen
+`existing` goes dim and `pass` lights up.
+
+**Setting the fields directly (experimental, off).** `Set the fields directly (experimental)`
+(`setFieldsDirectly`) writes the username and password into the client's own buffers instead of
+typing them, which is immune to which screen is up and where the caret is. It is **off by default and
+NOT VERIFIED**: the username's address is found by searching memory for the value the client is
+already rendering, and the password's is taken at `LOGIN_PASSWORD_DELTA` (508) from it — a delta
+derived from a single live probe run, recorded in `client/offsets.hpp` and mirrored in
+`FieldWriter.PASSWORD_DELTA`. Every gate has to pass or it falls back to typing and says why in the
+status line:
+
+- a username hit that pairs with a password hit across **printable text** is a *document*, not the
+  client — on 2026-09-06 that document was this client's own `config.json` in the JVM heap, gap
+  `","password":"` — and is discarded;
+- the candidate password buffer must be **all zeroes** (the "Please enter your password" state);
+- there must be **exactly one** surviving candidate;
+- `Natives.setLoginField` — the only write into game memory in the whole client — refuses unless the
+  target is committed, `PAGE_READWRITE` (there is no `VirtualProtect`, ever), already holds either
+  all zeroes or exactly the value being written, has room in its existing content plus zero run, and
+  is not shaped like an inline `NxtString` whose length byte it will not guess.
+
+Nothing on any of those paths prints a value, a length, or a byte of a buffer — the bytes are
+classified, never dumped (`FieldWriterTest` asserts that across every path).
+
+**Jagex Accounts.** The standalone client cannot log a Jagex Account in at all — the rejection
+screen's own text says to use the Jagex Launcher — so for one of those every attempt is rejected and
+the plugin stops with `rejected 2 times -- check the credentials, and whether this is a Jagex
+Account ...`. Nothing here can work around that.
+
+**Reading the log.** KEWL_LOG carries the whole story under `[autologin]` and `[input]`:
+
+| line | means |
+|---|---|
+| `[input] target 0x... class=JagRenderView` | messages go to NXT's input window (anything else: wrong window) |
+| `[autologin] enabled: credentials: file, username set, password set; raw state 10` | credentials resolved (`panel` or `file`); 10 is the title screen |
+| `[autologin] state 0 -> 10 (raw)` | the client reached the title screen |
+| `[autologin] raw state X is not the configured login state 10 -- ...` | the title screen holds another value on this build: set `Raw game state of the login screen` to X |
+| `[autologin] attempt 1/3: target=JagRenderView focused=1 foreground=1 canvas=1314x900 (screen WELCOME, user remembered by the client, pass set)` | typing starts; `focused=0` with nothing typed is the thing to report |
+| `[autologin] login screen fingerprint [ids] -- not in LoginScreen.KNOWN; going by how we got here, which says DISCONNECT` | one line per distinct screen. **Note which screen was really up and put the ids in `LoginScreen.KNOWN`** — that is how the fingerprint stops being a fallback |
+| `[autologin] screen: DISCONNECT (from how we got here) -- no Existing User click` | which script this attempt got, and why |
+| `[autologin] direct write: 2 candidate field pair(s) among 4 username hits (1 ruled out as documents, ...) -- typing instead` | `setFieldsDirectly` is on and refused; counts and reasons only, never a value |
+| `[autologin] script done (K keys/clicks, Login clicked); waiting up to ...` | the script was posted (keys and clicks are counted, characters never — a count would give away the password length) |
+| `[autologin] submitted; state 10 -> 20 after N ms` | the client accepted the typed login — the injection works |
+| `[autologin] logged in (state 30)` | done |
+| `[autologin] no state change after Login click: assuming the rejection screen, clicking Try again (rejection 1/2)` | the "Incorrect username or password" screen (the state does not move for it); Try again is clicked and the attempt re-run |
+| `[autologin] rejected 2 times -- check the credentials, and whether this is a Jagex Account ...` | stopped, so a wrong password is never hammered; also what a Jagex Account looks like from here |
+| `[autologin] server bounced us back to the login screen (rejection 1/2)` | the state did leave 10 and came back — a server-side rejection on a build that changes state for it |
+| `[autologin] authenticator screen (state 11) -- stopped` | a human is needed |
+
+**Calibrating clicks.** Every click target is a pair of settings: **x is the offset from the canvas
+centre, y is the offset from the canvas TOP** (in canvas pixels). That convention is not arbitrary:
+NXT letterboxes its title screen — about 1090×670 of drawn content, centred horizontally in the
+canvas but top-aligned — so x offsets hold relative to the centre while y offsets hold relative to
+the top, whatever the window size. The defaults are the live measurements from 2026-09-06 (canvas
+1314×900): Existing User (+69, 288), Login button (−93, 315), Try again (−14, 288), username field
+(−82, 234), password field (−82, 257). All of them are drawn as crosshairs over the title screen
+while `Draw the click targets` is on (bright = the script will click it, dim = preview only), so
+line them up against the real buttons before anything is typed and adjust the numbers in the panel
+if your client draws the screen elsewhere. Posted clicks are honoured by this build (the Login click
+is what submits); the log's `state 10 -> 20` line is the proof for yours.
+
+**What stops it.** The authenticator screen, two rejections (the rejection screen after a Login
+click, or a bounce back to the login screen after the state changed), three attempts, the plugin
+being switched off, or the game state reaching one of the **four** values `LoginSequence.leftTitle`
+knows — 20 (logging in) or 25 (loading) = submitted, 30 = logged in, 11 = authenticator. After
+a disconnect it goes idle (or re-arms with the counters reset when `Log in again after a
+disconnect` is on).
+
+Any *other* state the client may pass through mid-script — the setter compares against 1, 2, 5, 6,
+40, 45 and 1000 as well — is not one of those four, so the script keeps posting the remaining
+keystrokes and the Login click into whatever screen is up. Nothing seen live has done that (the
+title screen holds 10 until the login is accepted), but do not read the old "leaving the login
+screen for any reason" wording as a guarantee: the guarantee is the four states above. Review
+2026-09-06.
+
+
+---
+
 ## How it works
 
 ### The launcher
-`launcher/main.cpp` — finds `osclient.exe`, writes the DLL path into it, and calls `LoadLibraryA` on a
-remote thread. The oldest, most boring injection there is, in about thirty lines.
+`launcher/main.cpp` — an ImGui window with a "+ client" button. Pressing it spawns `osclient.exe`
+(the path comes from `[kewl] game=` in `kewlklient.ini`), injects `kewlklient.dll` into it with
+`CreateRemoteThread` + `LoadLibraryW` (the oldest, most boring injection there is), and reparents the
+game's window into the launcher's as a child. From then on one window holds the game on the left and
+a 286px Dear ImGui panel strip on the right, drawn by the launcher process with the CPU
+(`client/imgui_sw.hpp`) — the game owns the only OpenGL context, so the panel never touches a GPU.
+
+The panel's data lives in the game process (Java owns the plugin model, the profiles and the hub), so
+it crosses a shared-memory bridge: Java packs a snapshot (`kewl.panel.PanelBridge`), the DLL repacks
+it into the model region (`client/bridge.hpp`), the launcher reads and renders it
+(`launcher/bridge_layout.hpp`). Clicks travel back as small edit records in a ring in the same region,
+and the DLL applies them by calling Java — through `Setting.set` and the owning managers, never
+around them. The static_asserts in both C++ files make the sides fail a build rather than disagree
+about where byte 40 is, and `tools/bridge-roundtrip-probe.cpp` checks the whole round trip byte for
+byte against the real jar.
+
+Running `osclient.exe` yourself and injecting the DLL by hand skips all of this: the DLL detects
+that it was not launcher-spawned and builds its own host window and Java2D panel exactly as it always
+did (`tools/wine_inject.exe` does the injecting on Linux). Same plugins, same settings, same profiles
+— a different thing drawing the panel.
 
 ### The native half
 - `client/offsets.hpp` — every game-specific number, in one file, each with a note on how to re-find it.
 - `client/game.hpp` — guarded memory reads, entity enumeration, projection, and `doAction`.
 - `client/overlay.hpp` — the transparent window, and the one function that puts pixels in it.
-- `client/jvm.hpp` — starts the JVM and registers the ten natives. The whole unsafe surface.
-- `client/dllmain.cpp` — finds the game window and runs the 30 fps loop.
+- `client/jvm.hpp` — starts the JVM and registers the natives. The whole unsafe surface.
+- `client/bridge.hpp` — the DLL's half of the shared-memory panel bridge (model out, edits in).
+- `client/dllmain.cpp` — finds the game window, detects launcher mode, runs the 30 fps loop.
+- `client/imgui_sw.hpp` — the software rasterizer the launcher draws ImGui with (no GPU: the game owns
+  OpenGL).
+- `launcher/main.cpp` + `launcher/panel_ui.hpp` — the launcher window, the "+ client" spawn/inject/
+  embed, and the ImGui strip itself (plugins, config, profiles, hub, debug, collapse, search).
 
 ### The Java half
-- `java/kewl/Natives.java` — the ten natives, declared. You will not call these directly.
+- `java/kewl/Natives.java` — the natives, declared. You will not call these directly.
 - `java/kewl/api/` — the world with names on it: `Game`, `Entity`, `Local`, `Npcs`, `Players`, `Skills`,
   `Actions`.
-- `java/kewl/ui/` — `Theme` (all the colours), `Hud` (drawing helpers), `Sidebar` (the control panel).
+- `java/kewl/Plugin.java` — the base class, and `java/kewl/plugins/` — the plugins.
 - `java/kewl/config/` — settings that build their own controls.
-- `java/kewl/plugins/` — the plugins.
+- `java/kewl/plugin/` — `PluginManager` (the one place a plugin is switched on or off) and
+  `plugin/hub/` — the external plugin hub (manifest, download, verify, classload, remove).
+- `java/kewl/profile/` — profiles and persistence: per-profile enabled states and settings, debounced
+  atomic writes under `~/.kewlklient`.
+- `java/kewl/panel/PanelBridge.java` — the packed panel model Java publishes and the edits it accepts.
+- `java/kewl/ui/` — `Theme` (all the colours), `Hud` (drawing helpers), and the Java2D panel views the
+  direct-inject path draws (`SidePanel`, `PluginListView`, `ConfigView`, `ProfilesView`, `DebugView`).
+
+More on all of this: [`docs/architecture-after.md`](docs/architecture-after.md) is the architecture
+map, [`docs/plugin-system.md`](docs/plugin-system.md) covers plugins, config, profiles and the hub,
+and [`docs/testing.md`](docs/testing.md) is what is tested and how to verify the rest by hand.
 
 The overlay is a **transparent always-on-top window**, not a renderer hook. Hooking would need a detour
 library, a graphics API to get right, and it crashes inside someone else's render loop when you get it
@@ -254,6 +570,59 @@ builds and sends the packet itself. Consequences:
 - We never need to know the wire format.
 - Anti-cheat sees a normally-constructed packet, because it *is* one.
 - One function to re-find after an update instead of a hundred opcodes.
+
+**The honest state of that right now:** `DO_ACTION` is 0 — not derived for the current build — and
+`client/game.hpp` refuses to call a null RVA, so every action call is a guarded no-op by design
+(calling the wrong address would crash the game; reading a wrong offset only shows a wrong number).
+Plugins can be written and overlays run, but nothing can walk, chop or talk until someone re-derives
+the function by hook-and-log — `client/offsets.hpp` documents the method and the current candidate.
+Everything above describes the design and what it buys you once that one number is back.
+
+### RuneLite plugins
+
+There is a second way to write a plugin: port one. `java/net/runelite/` is a **shim, not RuneLite** —
+our own implementation of the `net.runelite.*` API that RuneLite plugins are written against. A plugin
+ported to `java/shortestpath/` (Shortest Path, from the plugin hub) reads the game through that shim and
+runs as an ordinary kewl plugin on the overlay thread; see `java/net/runelite/README.md` for what is
+vendored, what is shimming, and what waits on a new offset. (`resources/NOTICE-shortest-path` and
+`resources/LICENSE-shortest-path` are the licence side of the same story, not a technical one.)
+
+The honest state of it (2026-09-06, logged in on client-240-6): the offsets are mostly landed.
+Wired to registered natives are varps and varbits, item containers, widgets (bounds, text and
+children), NPC/player names, and the world map's origin position; everything derivable from those
+is built and unit-tested — pathfinding, tile overlays, config, events, the right-click popup.
+
+**Seen live**, in a logged-in client: autologin end to end (Existing User click → backspaces →
+password → Login click → state 10 → 20 → 25 → 30 → the *click here to play* click); entity boxes and
+hull prisms sitting on the actual models at each entity's own render height; names over NPCs and
+players (`DEF_NAME` reads on this build — 10 of 11 nearby NPCs named, the eleventh is a nameless
+one); and Shortest Path end to end — shift+right-click → the kewl popup's **Set Target** → a 32-step
+path → red tiles on the ground, the minimap line and the debug panel. The game's own *Walk here* row
+sits under our Set Target row, so setting a target also walks you there.
+
+**Still unverified in-game:** NPC Indicators driven from a name list, profile switching, and the
+plugin hub. And `DO_ACTION` is still 0, so the shim's own action path cannot act (see below) — the
+walking above is the game's menu doing it, not us.
+
+What still returns an honest default through `net.runelite.api.ClientState`, each method naming the
+offset it is waiting for:
+
+- **The game menu struct.** `DO_ACTION` is not derived yet, so nothing can read the game's own
+  right-click menu. `kewl/rl/MenuPopup.java` is the deliberate fallback: kewl detects the right-click,
+  fires the same events RuneLite would, and draws the plugin-contributed entries itself.
+- **World-map zoom.** The map's centre is derived and live (`kewl/rl/Events.java`'s `pushWorldMap`:
+  `centreTile = 8*WM_CENTRE = WM_ORIGIN + 48`, pinned in the decompile and cross-checked at the GE),
+  but there is deliberately no zoom, because the binary provably has no zoom field to read. The map
+  overlays' maths run on a placeholder zoom, so on-map drawing is anchored at the correct centre at a
+  guessed scale.
+- **Minimap zoom and camera yaw.** Both are placeholder defaults in `ClientState` until offsets near
+  the camera/viewport code are derived.
+
+Porting more hub plugins mostly means deriving the remaining offsets once; the shim is shared.
+
+Auto-walk is the one place kewl extends a ported plugin rather than just hosting it: upstream Shortest
+Path never moves for you, the `Auto-walk` toggle in its panel does, using the same `doAction` walk as
+every other plugin here.
 
 ---
 
@@ -310,13 +679,28 @@ Genuinely useful, roughly easiest first:
    enumerate scenery — that means walking the scene's object grid, about six more offsets. Land this and
    every gathering plugin gets shorter, and the woodcutter loses its most awkward setting.
    *(the highest-value one on this list, by a distance)*
-2. **Names.** NPC and player names live behind a pointer chain the client's own `npcName` binding walks.
-   Everything currently shows an id where it wants to show a name.
-3. **Inventory reading.** Nearly every bot needs "am I full yet".
-4. **Ground items.** Pairs with the above to make a looter possible.
-5. **Saving settings.** Config lives in memory and dies with the client. A small properties file next to
-   the jar, written on change, would do it — no new offsets, pure Java, a good first PR.
-6. **A minimap overlay.** All the pieces exist; it just needs the minimap's own projection.
+2. **The game menu struct.** `DO_ACTION` is still 0, so nothing can read the game's own menu entries or
+   click records — every menu action goes through the drawn-popup fallback in
+   `kewl/rl/MenuPopup.java`, and until this lands nothing can actually act in-game (see
+   [the RuneLite plugins section](#runelite-plugins) for what that means for auto-walk). Hook-and-log
+   is the method; `client/offsets.hpp` explains it.
+3. **Minimap zoom and camera yaw.** Both sit near the camera/viewport code — `worldToScreenCoord`'s
+   camera reads are the anchor. `ClientState.getMinimapZoom()` and `getCameraYawTarget()` hold the
+   placeholders today; landing them is what makes a rotated minimap and a kewl-native minimap
+   overlay possible.
+4. **Ground items.** Item containers are readable now; the scene's ground-item stack walk on top of
+   that is what makes a looter possible.
+5. ~~**Names.**~~ Done — the `entityName` native walks the client's own `npcName` binding, and NPC and
+   player names come through (`kewl/api/Entity.java`, `net/runelite/api/Player.java`).
+6. ~~**Inventory reading.**~~ Done — the `container` native reads any item container in one call
+   (wired through `net.runelite.api.ClientState.getItemContainer`).
+7. ~~**Saving settings.**~~ Done — settings, enabled states, pins and profiles persist under
+   `~/.kewlklient` (see `kewl/profile/ProfileManager.java`). Kept on the list so nobody redoes it:
+   the open problem there now is *syncing* a profile between machines, which is a file format
+   question, not an offsets one.
+8. ~~**A minimap overlay.**~~ Done for the ported plugin — Shortest Path ships a minimap overlay.
+   What is still open for kewl's own plugins is item 3: without the minimap zoom offset nothing of
+   ours can draw on it correctly.
 
 Please keep the three rules this codebase is built on: **no packet building**, **every offset gets a
 comment saying how it was found**, and **nothing claims to work until it has been seen working**.
@@ -350,6 +734,17 @@ The game updated and the offsets moved. See [When the game updates](#when-the-ga
 
 **Boxes flicker.**
 Expected — it is a layered window, not a renderer hook. See "The native half".
+
+**The panel strip says "bridge: opening…" forever, or shows nothing.**
+The DLL could not create the shared-memory mapping, or the jar beside the DLL predates the bridge.
+The game's stdout prints `[bridge]` lines saying which; the debug tab in the strip shows the same
+state. A jar without `kewl.panel.PanelBridge` gets an empty panel rather than a hung one.
+
+**My settings did not come back after a restart.**
+They live in `~/.kewlklient/profiles/` — a profile is a complete statement, so only what differs from
+a plugin's declared defaults is written, and a plugin that was never switched on under the active
+profile starts off. A corrupt file is quarantined as `.bad` and fallen back from; look for
+`[profile]` lines in the game's stdout.
 
 ---
 

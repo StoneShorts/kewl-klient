@@ -11,14 +11,19 @@ import kewl.Natives;
  */
 public final class Local {
 
-    static final Local ABSENT = new Local(false, -1, 0, 0, 0, -1, 0, 0, 0);
+    public static final Local ABSENT = new Local(false, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0);
 
     private final boolean exists;
     private final int uid, sceneX, sceneY, plane, animation, orientation, runEnergy, cycle;
+    private final int fineX, fineH, fineY;
 
     private Local(boolean exists, int uid, int sceneX, int sceneY, int plane,
-                  int animation, int orientation, int runEnergy, int cycle) {
+                  int animation, int orientation, int runEnergy, int cycle,
+                  int fineX, int fineH, int fineY) {
         this.exists = exists;
+        this.fineX = fineX;
+        this.fineH = fineH;
+        this.fineY = fineY;
         this.uid = uid;
         this.sceneX = sceneX;
         this.sceneY = sceneY;
@@ -31,9 +36,22 @@ public final class Local {
 
     static Local read() {
         int[] v = Natives.local();
-        if (v.length != 8) return ABSENT;
-        return new Local(true, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+        if (v.length != 11) return ABSENT;
+        return new Local(true, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10]);
     }
+
+    /** Your rendered position, fine units (128 per tile). Where your model is drawn, not just the tile. */
+    public int fineX() { return fineX; }
+
+    /** Your rendered position, fine units (128 per tile). */
+    public int fineY() { return fineY; }
+
+    /**
+     * The ground height under you, in the client's height axis (negative = up, 0 = datum). Read off
+     * your own entity, so it is exact for you and a fair guess for tiles near you -- which is what
+     * {@link Game#projectTile} uses until a terrain heightmap can be read.
+     */
+    public int height() { return fineH; }
 
     /** False before you have spawned into the world. Everything else is zero when this is false. */
     public boolean exists() { return exists; }
