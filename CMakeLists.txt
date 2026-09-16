@@ -83,10 +83,27 @@ endif()
 # ---------------------------------------------------------------------------------------------------
 # KewlKlient.exe -- the launcher with the button
 # ---------------------------------------------------------------------------------------------------
-add_executable(kewl_launcher WIN32 launcher/main.cpp)
-# The launcher draws the panel strip with ImGui through the same software rasterizer the DLL uses
-# (see the TARGET ARCHITECTURE note in the repo): one object library, both consumers.
-target_link_libraries(kewl_launcher PRIVATE user32 gdi32 kewl_imgui)
+# WebView2 comes from the official Microsoft NuGet package so the SDK version is reproducible.
+include(FetchContent)
+set(KEWL_WEBVIEW2_VERSION "1.0.3537.50" CACHE STRING "Microsoft WebView2 SDK version")
+FetchContent_Declare(webview2_sdk
+    URL "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/${KEWL_WEBVIEW2_VERSION}")
+FetchContent_MakeAvailable(webview2_sdk)
+find_path(KEWL_WEBVIEW2_INCLUDE WebView2.h PATHS "${webview2_sdk_SOURCE_DIR}/build/native/include" NO_DEFAULT_PATH)
+find_library(KEWL_WEBVIEW2_LOADER WebView2LoaderStatic PATHS "${webview2_sdk_SOURCE_DIR}/build/native/x64" NO_DEFAULT_PATH)
+if(NOT KEWL_WEBVIEW2_INCLUDE OR NOT KEWL_WEBVIEW2_LOADER)
+  message(FATAL_ERROR "The WebView2 SDK package is missing WebView2.h or WebView2LoaderStatic.lib")
+endif()
+add_executable(kewl_launcher WIN32
+    launcher/main.cpp
+    launcher/accounts/account_store.cpp
+    launcher/accounts/dpapi_credentials.cpp
+    launcher/accounts/http_client.cpp
+    launcher/accounts/jagex_auth.cpp
+    launcher/accounts/jagex_auth_window.cpp
+    launcher/accounts/osclient_launcher.cpp)
+target_include_directories(kewl_launcher PRIVATE launcher "${KEWL_WEBVIEW2_INCLUDE}")
+target_link_libraries(kewl_launcher PRIVATE user32 gdi32 ole32 crypt32 bcrypt winhttp "${KEWL_WEBVIEW2_LOADER}" kewl_imgui)
 set_target_properties(kewl_launcher PROPERTIES OUTPUT_NAME "KewlKlient")
 
 if(MINGW)
