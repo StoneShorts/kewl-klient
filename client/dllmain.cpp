@@ -37,6 +37,7 @@
 #include "panel.hpp"
 #include "jvm.hpp"
 #include "bridge.hpp"
+#include "resolve.hpp"
 
 namespace {
 
@@ -563,18 +564,14 @@ std::string checkBuild() {
         return "";
     }
     const std::string shown = have.empty() ? "(no version resource)" : kk::narrow(have);
-    if (::getenv("KEWL_SKIP_BUILD_CHECK")) {
-        kk::logf("[build] WARNING: osclient.exe %s but offsets.hpp is for client-%s -- "
-                    "KEWL_SKIP_BUILD_CHECK set, every offset is now suspect\n",
-                    shown.c_str(), kk::narrow(want).c_str());
-        return "";
-    }
-    kk::logf("[build] REFUSED: osclient.exe %s, offsets.hpp is for client-%s\n",
+    // ADVISORY, not a gate any more: the runtime resolver reconstructs the layout
+    // for the binary actually running (kk::rsl::init below), and every slot it
+    // could not resolve disables only its own feature. A version mismatch now
+    // says so in the log instead of refusing to start.
+    kk::logf("[build] NOTE: osclient.exe %s, offsets default to client-%s -- "
+                "runtime resolver owns the layout now\n",
                 shown.c_str(), kk::narrow(want).c_str());
-    return "this is osclient.exe " + shown + ", but kewlklient.dll was built for client-" +
-           kk::narrow(want) + ". Not reading its memory: every offset in client/offsets.hpp was "
-           "measured on that build. Run the matching client, or re-derive the offsets "
-           "(.claude/skills/deob) and bump BUILD_VERSION with them.";
+    return "";
 }
 
 DWORD WINAPI run(LPVOID module) {
@@ -653,10 +650,20 @@ DWORD WINAPI run(LPVOID module) {
 
     std::wstring javaHome = iniString(ini, L"java", L"");
     std::wstring jar      = dir + L"\\kewlklient.jar";
-    // The build check comes first: with g_javaError set the loop below never ticks the JVM, so no
-    // native ever reads game memory. The message renders natively over the game like any other
-    // start-up failure.
+    // The build check comes first, then the resolver, then the JVM: the resolver must own the
+    // layout before anything reads game memory, and the build check is advisory only now -- a
+    // version mismatch logs a NOTE, and the resolver's per-slot verdicts (logged just below)
+    // decide what works on this build. If the resolver fails at the map/anchor level it returns
+    // false and leaves the compiled-in fallback layout untouched (logged, degraded, still safe:
+    // those slots are the last build where a human verified them).
     g_javaError = checkBuild();
+    {
+        // GetModuleHandleW(nullptr) is the executable containing this injected DLL: osclient.exe.
+        // Do not use &g_game with GetModuleHandleExW; that address belongs to kewlklient.dll itself
+        // and would make the resolver scan the injected DLL instead of the game image.
+        HMODULE gameModule = GetModuleHandleW(nullptr);
+        kk::rsl::init(reinterpret_cast<std::uintptr_t>(gameModule));
+    }
     if (!g_javaError.empty()) {
         // said above
     } else if (javaHome.empty()) {
@@ -899,14 +906,7 @@ DWORD WINAPI run(LPVOID module) {
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(module);
-        // Every printf in the DLL goes to stdout, which is fine when the game was started from a
-        // shell (tools/wine-setup.sh's instructions) -- but the LAUNCHER is a GUI-subsystem process
-        // with no console, so a game it spawns inherits no stdout and every diagnostic vanishes.
-        // KEWL_LOG=<path> redirects stdout to a file instead; the env var reaches this process
-        // through the launcher, which inherits it from the shell that started it.
-        // Appending, shared with the launcher (which inherited this env var and opened the same file
-        // first): its [input] trace and our lines interleave in one file. See log.hpp for why this is
-        // a kernel handle and not freopen(stdout) -- and why it must happen before the JVM starts.
+        // KEWL_LOG=<path> redirects diagnostics to a file when running without a console.
         if (const char* log = ::getenv("KEWL_LOG")) kk::logOpen(log);
         kk::logf("[dll] attached to pid %lu\n", static_cast<unsigned long>(GetCurrentProcessId()));
         CreateThread(nullptr, 0, run, module, 0, nullptr);

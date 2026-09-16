@@ -26,6 +26,13 @@
 #include <cstdio>
 #include <cfloat>
 #include <algorithm>
+#include <filesystem>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <optional>
+#include <map>
+#include <sstream>
 #include <io.h>          // _open_osfhandle / _dup2: the KEWL_LOG redirect in WinMain
 #include <fcntl.h>
 
@@ -33,6 +40,10 @@
 #include "imgui_sw.hpp"
 #include "bridge_layout.hpp"
 #include "panel_ui.hpp"
+#include "accounts/account_store.hpp"
+#include "accounts/jagex_auth.hpp"
+#include "accounts/jagex_auth_window.hpp"
+#include "accounts/osclient_launcher.hpp"
 
 namespace {
 
@@ -51,6 +62,7 @@ UINT g_msgEmbed     = 0;      // launcher -> game window: "you are being embedde
 UINT g_msgEdit      = 0;      // launcher -> DLL message window: "drain the edit ring"
 bool g_ringFullLogged = false; // set while the edit ring is refusing writes; see writeEdit
 UINT g_msgActivate  = 0;      // launcher -> DLL message window: wParam 1 = activated, 0 = deactivated
+constexpr UINT WM_KEWL_AUTH_NAVIGATE = WM_APP + 41;
 
 HWND g_main = nullptr;
 int  g_clientW = 1600, g_clientH = 900;
@@ -67,7 +79,7 @@ constexpr wchar_t kLauncherProp[] = L"KewlKlientLauncherHwnd";
 
 // Defined further down; the UI and the frame loop both reach for these.
 void layoutEmbed();
-void startLaunch();
+void startLaunch(const std::wstring& environmentBlock = {});
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -603,6 +615,26 @@ Phase g_phase = Phase::Home;
 std::wstring g_status = L"Spawn the game, inject the DLL, embed it here.";
 std::wstring g_gamePath, g_dllPath, g_gameDir;
 std::wstring g_iniPath;                 // kewlklient.ini next to this exe: paths in, sidebar state out
+std::unique_ptr<AccountStore> g_accounts;
+std::unique_ptr<JagexAuthWindow> g_authWindow;
+std::string g_accountError;
+std::wstring g_launchEnvironment;
+char g_legacyUsername[256]{};
+char g_legacyLabel[256]{};
+
+enum class AuthStage { Idle, LauncherBrowser, Exchanging, ConsentBrowser, CreatingSession, ImportReady, Failed };
+struct AuthRuntime {
+    std::mutex mutex;
+    AuthStage stage = AuthStage::Idle;
+    jagex_auth::LauncherOAuthRequest launcher;
+    jagex_auth::ConsentOAuthRequest consent;
+    std::string firstIdToken;
+    std::vector<jagex_auth::Character> characters;
+    std::string sessionId;
+    std::string error;
+    bool importOpen = false;
+};
+AuthRuntime g_auth;
 bool g_collapsed = false;               // the value persistCollapse last saw (and the ini holds)
 bool g_reducedMotion = false;           // ditto for the reduced-motion preference (persistUiPrefs)
 DWORD g_gamePid = 0;
@@ -621,6 +653,12 @@ void loadPaths() {
     std::wstring dir = dirOf(exe);
     g_iniPath = dir + L"\\kewlklient.ini";
     g_gameDir  = dir;
+    wchar_t localAppData[MAX_PATH]{};
+    GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
+    if (localAppData[0]) {
+        g_accounts = std::make_unique<AccountStore>(std::filesystem::path(localAppData) / L"KewlKlient");
+        g_accounts->Load(g_accountError);
+    }
     g_gamePath = resolveAgainst(dir, iniString(g_iniPath, L"game", L"osclient.exe"));
     g_dllPath  = resolveAgainst(dir, iniString(g_iniPath, L"dll", L"kewlklient.dll"));
     // The sidebar's open/closed state is the one thing this process persists between boots (the
@@ -882,6 +920,80 @@ void bridgeTick() {
 }
 
 // ---------------------------------------------------------------------------
+// Accounts and UI
+// ---------------------------------------------------------------------------
+bool launchJagexCharacter(const JagexCharacter& character) {
+    if (!g_accounts) { g_status = L"account store is unavailable"; return false; }
+    auto* identity = g_accounts->FindIdentity(character.identityId);
+    if (!identity) { g_status = L"Jagex identity not found"; return false; }
+    std::string error; auto session = g_accounts->credentials().LoadSecret(identity->credentialReference, error);
+    if (!session) { identity->authState = AuthState::ReauthenticationRequired; g_accounts->Save(error); g_status = wide(error); return false; }
+    std::wstring environment;
+    if (!OsClientLauncher::BuildJagexEnvironment(*session, character, environment, error)) { SecureZeroMemory(session->data(), session->size()); g_status = wide(error); return false; }
+    SecureZeroMemory(session->data(), session->size());
+    const_cast<JagexCharacter&>(character).lastUsed = AccountStore::Now();
+    g_accounts->Save(error); startLaunch(environment); return true;
+}
+
+bool launchLegacyAccount(const LegacyAccount& account) {
+    std::string error; std::wstring environment;
+    if (!OsClientLauncher::BuildLegacyEnvironment(environment, error)) { g_status = wide(error); return false; }
+    const_cast<LegacyAccount&>(account).lastUsed = AccountStore::Now();
+    if (g_accounts) g_accounts->Save(error); startLaunch(environment); return true;
+}
+
+std::map<std::string, std::string> parseUrlValues(const std::string& text, char separator) {
+    std::map<std::string, std::string> result; std::stringstream stream(text); std::string item;
+    while (std::getline(stream, item, separator)) { auto eq = item.find('='); if (eq != std::string::npos) result[item.substr(0, eq)] = item.substr(eq + 1); }
+    return result;
+}
+void scheduleAuthNavigation(const std::string& url) { auto* value = new std::string(url); PostMessageW(g_main, WM_KEWL_AUTH_NAVIGATE, 0, reinterpret_cast<LPARAM>(value)); }
+void beginJagexLogin() {
+    if (g_authWindow && g_authWindow->IsOpen()) { g_status = L"Jagex sign-in is already open"; return; }
+    wchar_t local[MAX_PATH]{}; GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
+    if (!local[0]) { g_status = L"LOCALAPPDATA is unavailable"; return; }
+    const auto temp = std::filesystem::path(local) / L"KewlKlient" / L"AuthTemp" / AccountStore::NewId();
+    auto request = jagex_auth::BeginLauncherOAuth(); if (request.url.empty()) { g_status = L"could not generate secure OAuth state"; return; }
+    { std::lock_guard lock(g_auth.mutex); g_auth.stage = AuthStage::LauncherBrowser; g_auth.launcher = request; g_auth.consent = {}; g_auth.firstIdToken.clear(); g_auth.characters.clear(); g_auth.error.clear(); g_auth.importOpen = false; }
+    g_authWindow = std::make_unique<JagexAuthWindow>(); std::string error;
+    auto callback = [](const std::wstring& uri) -> bool {
+        const std::string text = utf8(uri);
+        if (text.rfind(jagex_auth::LAUNCHER_REDIRECT, 0) == 0) {
+            auto q = text.find('?'); auto values = q == std::string::npos ? std::map<std::string,std::string>() : parseUrlValues(text.substr(q + 1), '&');
+            std::lock_guard lock(g_auth.mutex);
+            if (values["state"] != g_auth.launcher.state || values["code"].empty()) { g_auth.stage = AuthStage::Failed; g_auth.error = "OAuth state mismatch or authorization code missing"; g_status = L"Jagex sign-in failed: invalid OAuth callback"; return true; }
+            const std::string code = values["code"], verifier = g_auth.launcher.verifier; g_auth.stage = AuthStage::Exchanging;
+            std::thread([code, verifier] { jagex_auth::Service service; std::string token, error; if (!service.ExchangeCode(code, verifier, token, error)) { std::lock_guard lock(g_auth.mutex); g_auth.stage=AuthStage::Failed; g_auth.error=error; return; } auto consent=jagex_auth::BeginConsent(token); { std::lock_guard lock(g_auth.mutex); g_auth.firstIdToken=std::move(token); g_auth.consent=consent; g_auth.stage=AuthStage::ConsentBrowser; } scheduleAuthNavigation(consent.url); }).detach();
+            return true;
+        }
+        if (text.rfind("http://localhost", 0) == 0) {
+            auto hash = text.find('#'); auto values = hash == std::string::npos ? std::map<std::string,std::string>() : parseUrlValues(text.substr(hash + 1), '&');
+            std::lock_guard lock(g_auth.mutex);
+            if (g_auth.stage != AuthStage::ConsentBrowser || values["state"] != g_auth.consent.state || values["id_token"].empty()) { g_auth.stage=AuthStage::Failed; g_auth.error="consent state mismatch or id_token missing"; return true; }
+            const std::string token=values["id_token"]; g_auth.stage=AuthStage::CreatingSession;
+            std::thread([token] { jagex_auth::Service service; std::string session,error; std::vector<jagex_auth::Character> chars; if(!service.CreateGameSession(token,session,error)||!service.FetchCharacters(session,chars,error)){std::lock_guard lock(g_auth.mutex);g_auth.stage=AuthStage::Failed;g_auth.error=error;return;} {std::lock_guard lock(g_auth.mutex);g_auth.sessionId=std::move(session);g_auth.characters=std::move(chars);g_auth.stage=AuthStage::ImportReady;} }).detach();
+            return true;
+        }
+        return false;
+    };
+    if (!g_authWindow->Open(temp.wstring(), callback, [] {}, error) || !g_authWindow->Navigate(request.url, error)) { g_authWindow.reset(); g_status = wide(error); return; }
+    g_status = L"Jagex sign-in window opened; complete authentication there.";
+}
+
+void importJagexCharacters() {
+    std::lock_guard lock(g_auth.mutex);
+    if (!g_accounts || g_auth.sessionId.empty() || g_auth.characters.empty()) return;
+    const auto now = AccountStore::Now();
+    JagexIdentity created; created.id = AccountStore::NewId(); created.credentialReference = AccountStore::NewId(); created.createdAt = now; created.lastAuthenticatedAt = now; created.authState = AuthState::Ready;
+    std::string error;
+    if (!g_accounts->credentials().StoreSecret(created.credentialReference, g_auth.sessionId, error)) { g_auth.stage=AuthStage::Failed; g_auth.error=error; return; }
+    g_accounts->UpsertIdentity(created);
+    for (const auto& remote : g_auth.characters) { JagexCharacter c; c.id=AccountStore::NewId(); c.identityId=created.id; c.accountId=remote.accountId; c.displayName=remote.displayName; c.createdAt=now; c.lastUsed=0; c.available=true; g_accounts->UpsertCharacter(std::move(c)); }
+    if (!g_accounts->Save(error)) { g_auth.stage=AuthStage::Failed; g_auth.error=error; return; }
+    SecureZeroMemory(g_auth.sessionId.data(), g_auth.sessionId.size()); g_auth.sessionId.clear(); g_auth.stage=AuthStage::Idle; g_auth.characters.clear(); g_authWindow.reset(); g_status = L"Jagex characters imported.";
+}
+
+// ---------------------------------------------------------------------------
 // UI
 // ---------------------------------------------------------------------------
 void drawHome() {
@@ -908,6 +1020,37 @@ void drawHome() {
     ImGui::EndChild();
 
     ImGui::SetCursorPos(ImVec2(40, 250));
+    ImGui::BeginChild("accounts", ImVec2(600, 360), true);
+    ImGui::TextUnformatted("Accounts");
+    { std::lock_guard lock(g_auth.mutex); if (g_auth.stage == AuthStage::ImportReady) { ImGui::OpenPopup("Jagex Account Connected"); } if (g_auth.stage == AuthStage::Failed && !g_auth.error.empty()) { ImGui::TextColored(ImVec4(1,0.4f,0.4f,1), "%s", g_auth.error.c_str()); } }
+    if (ImGui::Button("+ Login with Jagex") ) beginJagexLogin();
+    if (ImGui::BeginPopupModal("Jagex Account Connected", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { ImGui::TextUnformatted("Characters found:"); std::vector<std::string> names; { std::lock_guard lock(g_auth.mutex); for (const auto& c : g_auth.characters) names.push_back(c.displayName); } for (const auto& name : names) ImGui::Text("[x] %s", name.c_str()); if (ImGui::Button("Import All")) { ImGui::CloseCurrentPopup(); importJagexCharacters(); } ImGui::SameLine(); if (ImGui::Button("Cancel")) { std::lock_guard lock(g_auth.mutex); SecureZeroMemory(g_auth.sessionId.data(), g_auth.sessionId.size()); g_auth.sessionId.clear(); g_auth.characters.clear(); g_auth.stage=AuthStage::Idle; ImGui::CloseCurrentPopup(); } ImGui::EndPopup(); }
+
+    ImGui::SameLine();
+    if (ImGui::Button("+ Add Legacy Account")) ImGui::OpenPopup("Add Legacy Account");
+    if (ImGui::BeginPopupModal("Add Legacy Account", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::InputText("Username", g_legacyUsername, sizeof g_legacyUsername);
+        ImGui::InputText("Label", g_legacyLabel, sizeof g_legacyLabel);
+        ImGui::TextWrapped("The existing AutoLogin plugin remains responsible for the password and native login screen.");
+        if (ImGui::Button("Save")) { if (g_accounts && g_legacyUsername[0]) { LegacyAccount a; a.id=AccountStore::NewId(); a.username=g_legacyUsername; a.label=g_legacyLabel; a.createdAt=AccountStore::Now(); std::string e; g_accounts->data().legacyAccounts.push_back(std::move(a)); if (!g_accounts->Save(e)) g_status=wide(e); else g_status=L"Legacy account saved; configure its AutoLogin credentials before launching."; g_legacyUsername[0]=g_legacyLabel[0]=0; } ImGui::CloseCurrentPopup(); }
+        ImGui::SameLine(); if (ImGui::Button("Cancel")) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if (g_accounts) {
+        ImGui::Separator(); ImGui::TextUnformatted("Jagex characters");
+        for (const auto& c : g_accounts->data().jagexCharacters) {
+            ImGui::Text("%s%s", c.displayName.c_str(), c.available ? "" : " (unavailable)"); ImGui::SameLine();
+            if (ImGui::Button((std::string("Launch##jagex-") + c.id).c_str()) && c.available) launchJagexCharacter(c);
+        }
+        ImGui::Separator(); ImGui::TextUnformatted("Legacy accounts");
+        for (const auto& a : g_accounts->data().legacyAccounts) {
+            ImGui::Text("%s", a.label.empty() ? a.username.c_str() : a.label.c_str()); ImGui::SameLine();
+            if (ImGui::Button((std::string("Launch##legacy-") + a.id).c_str())) launchLegacyAccount(a);
+        }
+    } else ImGui::TextDisabled("Account storage is unavailable.");
+    ImGui::EndChild();
+
+    ImGui::SetCursorPos(ImVec2(40, 650));
     ImGui::BeginChild("paths", ImVec2(420, 120), true);
     ImGui::TextWrapped("game: %s", utf8(g_gamePath).c_str());
     ImGui::TextWrapped("dll:  %s", utf8(g_dllPath).c_str());
@@ -1471,7 +1614,7 @@ bool frame() {
     return true;
 }
 
-void startLaunch() {
+void startLaunch(const std::wstring& environmentBlock) {
     loadPaths();
     if (GetFileAttributesW(g_gamePath.c_str()) == INVALID_FILE_ATTRIBUTES) {
         g_status = L"cannot find the game at: " + g_gamePath;
@@ -1487,7 +1630,9 @@ void startLaunch() {
     // The game's own directory as its working directory: NXT resolves its config and cache relative
     // to the cwd, and a launcher that starts it from elsewhere would send it digging in the wrong
     // place.
-    if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, 0, nullptr,
+    const DWORD flags = environmentBlock.empty() ? 0 : CREATE_UNICODE_ENVIRONMENT;
+    void* environment = environmentBlock.empty() ? nullptr : const_cast<wchar_t*>(environmentBlock.c_str());
+    if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, flags, environment,
                         g_gameDir.c_str(), &si, &pi)) {
         g_status = L"CreateProcess failed (error " + std::to_wstring(GetLastError()) + L").";
         return;
@@ -1501,6 +1646,11 @@ void startLaunch() {
 
 LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     switch (m) {
+    case WM_KEWL_AUTH_NAVIGATE: {
+        std::unique_ptr<std::string> url(reinterpret_cast<std::string*>(l));
+        if (g_authWindow) { std::string error; if (!g_authWindow->Navigate(*url, error)) g_status = wide(error); }
+        return 0;
+    }
     case WM_ERASEBKGND:
         return 1;                                   // the DIB covers every pixel; erasing is flicker
     case WM_PAINT: {

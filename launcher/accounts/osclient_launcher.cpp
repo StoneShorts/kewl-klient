@@ -1,0 +1,13 @@
+#include "osclient_launcher.hpp"
+#include <algorithm>
+#include <cwctype>
+#include <map>
+
+namespace {
+const wchar_t* const names[] = {L"JX_SESSION_ID", L"JX_CHARACTER_ID", L"JX_DISPLAY_NAME", L"JX_ACCESS_TOKEN", L"JX_REFRESH_TOKEN"};
+std::wstring wide(const std::string& s){if(s.empty())return {};int n=MultiByteToWideChar(CP_UTF8,0,s.data(),static_cast<int>(s.size()),nullptr,0);std::wstring w(n,L'\0');MultiByteToWideChar(CP_UTF8,0,s.data(),static_cast<int>(s.size()),w.data(),n);return w;}
+bool isSecretName(const std::wstring& n){for(auto* x:names)if(_wcsicmp(n.c_str(),x)==0)return true;return false;}
+}
+bool OsClientLauncher::BuildJagexEnvironment(const std::string& session,const JagexCharacter& character,std::wstring& block,std::string& error){if(session.empty()||character.accountId.empty()){error="Jagex account is missing its protected session or character ID";return false;}std::map<std::wstring,std::wstring> vars;LPWCH raw=GetEnvironmentStringsW();if(!raw){error="GetEnvironmentStringsW failed";return false;}for(LPWCH p=raw;*p;){std::wstring item=p;p+=item.size()+1;auto eq=item.find('=');if(eq!=std::wstring::npos&&item[0]!='=')vars[item.substr(0,eq)]=item.substr(eq+1);}FreeEnvironmentStringsW(raw);for(auto* n:names)vars.erase(n);vars[L"JX_SESSION_ID"]=wide(session);vars[L"JX_CHARACTER_ID"]=wide(character.accountId);vars[L"JX_DISPLAY_NAME"]=wide(character.displayName);vars[L"JX_ACCESS_TOKEN"]=L"";vars[L"JX_REFRESH_TOKEN"]=L"";block.clear();for(auto&[k,v]:vars){block+=k;block+=L'=';block+=v;block.push_back(L'\0');}block.push_back(L'\0');return true;}
+bool OsClientLauncher::BuildLegacyEnvironment(std::wstring& block,std::string& error){std::map<std::wstring,std::wstring> vars;LPWCH raw=GetEnvironmentStringsW();if(!raw){error="GetEnvironmentStringsW failed";return false;}for(LPWCH p=raw;*p;){std::wstring item=p;p+=item.size()+1;auto eq=item.find('=');if(eq!=std::wstring::npos&&item[0]!='=')vars[item.substr(0,eq)]=item.substr(eq+1);}FreeEnvironmentStringsW(raw);for(auto* n:names)vars.erase(n);block.clear();for(auto&[k,v]:vars){block+=k;block+=L'=';block+=v;block.push_back(L'\0');}block.push_back(L'\0');return true;}
+bool OsClientLauncher::Create(const std::wstring& executable,const std::wstring& workingDirectory,const std::wstring& environmentBlock,PROCESS_INFORMATION& process,std::string& error){STARTUPINFOW startup{sizeof startup};std::wstring command=L"\""+executable+L"\"";if(!CreateProcessW(nullptr,command.data(),nullptr,nullptr,FALSE,CREATE_UNICODE_ENVIRONMENT,const_cast<wchar_t*>(environmentBlock.c_str()),workingDirectory.c_str(),&startup,&process)){error="CreateProcessW failed (error "+std::to_string(GetLastError())+")";return false;}return true;}

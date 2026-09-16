@@ -14,6 +14,7 @@
 #include <vector>
 #include <algorithm>
 #include "offsets.hpp"
+#include "runtime_layout.hpp"
 #include "log.hpp"
 
 namespace kk {
@@ -48,7 +49,10 @@ inline std::uintptr_t moduleBase() {
 }
 
 /// The client object, or 0 if the game has not built it yet (it is null for the first few seconds).
-inline std::uintptr_t clientObj() { return rdp(moduleBase() + off::CLIENT_OBJ_PTR); }
+inline std::uintptr_t clientObj() {
+    if (!layout::available(layout::Field::ClientObject)) return 0;
+    return rdp(moduleBase() + off::CLIENT_OBJ_PTR);
+}
 
 /// The scene object, or 0.
 inline std::uintptr_t scene() {
@@ -120,6 +124,10 @@ inline int combatLevel(std::uintptr_t /*entity*/) {
 /// rehashes these tables on its own thread, and a chain observed mid-rehash can point at itself.
 template <class F>
 void forEachEntity(F&& cb) {
+    // The registry and coordinate accessors are semantic capabilities. Do not
+    // walk legacy fallback offsets on a new client: an empty entity stream is
+    // safer than a plausible-looking stream built from the wrong layout.
+    if (!layout::entities()) return;
     std::uintptr_t c = clientObj();
     if (!c) return;
     std::uintptr_t groups = rdp(c + off::REGISTRY_GROUPS);
@@ -320,7 +328,7 @@ inline std::string nxtString(std::uintptr_t str, std::uint64_t maxLen = 200) {
 
 /// An NPC's name: its own +0x710 override first (normally empty), else the definition's +0x8.
 inline std::string npcName(std::uintptr_t entity) {
-    if (!entity) return {};
+    if (!entity || !layout::npcNames()) return {};
     std::string own = nxtString(entity + off::ENTITY_NAME_OVERRIDE);
     if (!own.empty()) return own;
     std::uintptr_t def = rdp(entity + off::ENTITY_DEF_PTR);
@@ -329,7 +337,7 @@ inline std::string npcName(std::uintptr_t entity) {
 
 /// A player's name. Players keep a pointer to a heap NxtString at +0x718 (no definition object).
 inline std::string playerName(std::uintptr_t entity) {
-    if (!entity) return {};
+    if (!entity || !layout::playerNames()) return {};
     std::uintptr_t sp = rdp(entity + off::PLAYER_NAME_PTR);
     return sp ? nxtString(sp) : std::string{};
 }
@@ -385,9 +393,9 @@ inline Widget widget(int id) {
     wgt.width  = rd<std::int32_t>(w + off::IFTYPE_WIDTH);
     wgt.height = rd<std::int32_t>(w + off::IFTYPE_HEIGHT);
     wgt.hidden = rd<std::uint8_t>(w + off::IFTYPE_HIDDEN) != 0;
-    // The text is an NxtString at IFTYPE_TEXT; its flag byte IS IFTYPE_TEXT+0x17 (the constant
-    // offsets.hpp records separately), which the assert pins so the two cannot drift apart.
-    static_assert(off::IFTYPE_TEXT_FLAG == off::IFTYPE_TEXT + 0x17, "IfType text flag is the NxtString's +0x17");
+    // The text is an NxtString at IFTYPE_TEXT; its flag byte is IFTYPE_TEXT+0x17. That used to be a
+    // static_assert on two constexprs; the slots are runtime-resolved now, so the invariant is kept
+    // by construction (offsets.hpp/resolve.hpp always write FLAG = TEXT+0x17 together).
     // 4096, not the 200-byte name bound: a dialogue or chatbox line over 200 bytes used to come back
     // "" with no error, so a ported plugin reading it saw an EMPTY widget rather than a long one
     // (review 2026-09-06). readable() is still the real guard on the pointer.
@@ -889,7 +897,7 @@ inline std::string widgetChainString(int id) {
 
 /// One varp value by id. 0 when the array is not up yet or the id is out of range.
 inline int varp(int id) {
-    if (id < 0) return 0;
+    if (id < 0 || !layout::available(layout::Field::VarpArray)) return 0;
     std::uintptr_t arr = rdp(moduleBase() + off::VARP_ARRAY_PTR);
     if (!arr) return 0;
     return rd<std::int32_t>(arr + static_cast<std::uintptr_t>(id) * 4);
@@ -954,6 +962,9 @@ inline int containerQty(int containerId, int slot) {
 ///
 /// Returns false when the point is behind the camera or otherwise off in the weeds. Do not draw it.
 inline bool projectFine(int fineX, int fineHeight, int fineY, float& outX, float& outY) {
+    // Projection is a callable address discovered from the current client's
+    // worldToScreen binding. A fallback/unknown function must never be called.
+    if (!layout::projection()) return false;
     using Fn = float* (__fastcall*)(void*, float*, int*);
     auto fn = reinterpret_cast<Fn>(moduleBase() + off::WORLD_TO_SCREEN);
 
