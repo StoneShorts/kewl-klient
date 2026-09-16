@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 #include "game.hpp"
+#include "model_geometry.hpp"
 #include "overlay.hpp"
 #include "panel.hpp"
 #include "jvm.hpp"

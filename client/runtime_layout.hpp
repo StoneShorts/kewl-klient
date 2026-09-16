@@ -26,6 +26,9 @@ enum class Field : std::uint8_t {
     PlayerName,
     Projection,
     Camera,
+    RuntimeModelGeometry,
+    NpcCurrentModel,
+    PlayerCurrentModel,
     Count,
 };
 
@@ -70,6 +73,18 @@ inline bool playerNames() {
 
 inline bool projection() {
     return available(Field::Projection) && available(Field::Camera);
+}
+
+inline bool runtimeModelGeometry() {
+    return available(Field::RuntimeModelGeometry);
+}
+
+inline bool npcModelHighlights() {
+    return entities() && projection() && runtimeModelGeometry() && available(Field::NpcCurrentModel);
+}
+
+inline bool playerModelHighlights() {
+    return entities() && projection() && runtimeModelGeometry() && available(Field::PlayerCurrentModel);
 }
 
 inline bool gameState() {

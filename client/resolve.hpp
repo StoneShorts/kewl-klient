@@ -84,7 +84,7 @@ inline string cachePath() {
     return p + "\\resolve-cache.json";
 }
 
-constexpr long long CACHE_LAYOUT_VERSION = 2;
+constexpr long long CACHE_LAYOUT_VERSION = 3;
 struct CacheKey { u64 textHash = 0; std::size_t textSize = 0; std::uint32_t peChecksum = 0; };
 
 // name -> slot table (one place; the cache and the apply loop share it)
@@ -95,6 +95,20 @@ inline vector<Slot> slotTable() {
     return {
         {"WORLD_TO_SCREEN", &kk::off::WORLD_TO_SCREEN},
         {"DO_ACTION", &kk::off::DO_ACTION},
+        {"RUNTIME_MODEL_VTABLE", &kk::off::RUNTIME_MODEL_VTABLE},
+        {"RUNTIME_MODEL_CTOR", &kk::off::RUNTIME_MODEL_CTOR},
+        {"RUNTIME_MODEL_CLONE", &kk::off::RUNTIME_MODEL_CLONE},
+        {"RUNTIME_MODEL_APPLY_ANIM", &kk::off::RUNTIME_MODEL_APPLY_ANIM},
+        {"RUNTIME_MODEL_TRANSFORM", &kk::off::RUNTIME_MODEL_TRANSFORM},
+        {"RUNTIME_MODEL_INVALIDATE", &kk::off::RUNTIME_MODEL_INVALIDATE},
+        {"RUNTIME_MODEL_SCALE", &kk::off::RUNTIME_MODEL_SCALE},
+        {"MODEL_VERTEX_COUNT", &kk::off::MODEL_VERTEX_COUNT},
+        {"MODEL_VERTEX_X", &kk::off::MODEL_VERTEX_X},
+        {"MODEL_VERTEX_Y", &kk::off::MODEL_VERTEX_Y},
+        {"MODEL_VERTEX_Z", &kk::off::MODEL_VERTEX_Z},
+        {"MODEL_ANIM_GROUPS", &kk::off::MODEL_ANIM_GROUPS},
+        {"NPC_GET_MODEL_ENTRY", &kk::off::NPC_GET_MODEL_ENTRY},
+        {"NPC_MODEL_RESOLVER", &kk::off::NPC_MODEL_RESOLVER},
         {"CLIENT_OBJ_PTR", &kk::off::CLIENT_OBJ_PTR},
         {"VARP_ARRAY_PTR", &kk::off::VARP_ARRAY_PTR},
         {"CONTAINER_BUCKETS", &kk::off::CONTAINER_BUCKETS},
@@ -178,6 +192,49 @@ inline vector<Slot> slotTable() {
         {"CONTAINER_NODE_QTYS_END", &kk::off::CONTAINER_NODE_QTYS_END},
         {"CONTAINER_NODE_NEXT", &kk::off::CONTAINER_NODE_NEXT},
     };
+}
+
+inline bool validateRuntimeModelLayout(const ModuleMap& M, vector<string>& lines) {
+    namespace off = kk::off;
+    auto clear = [&]() {
+        off::RUNTIME_MODEL_VTABLE = off::RUNTIME_MODEL_CTOR = 0;
+        off::RUNTIME_MODEL_CLONE = off::RUNTIME_MODEL_APPLY_ANIM = 0;
+        off::RUNTIME_MODEL_TRANSFORM = off::RUNTIME_MODEL_INVALIDATE = 0;
+        off::RUNTIME_MODEL_SCALE = 0;
+        off::MODEL_VERTEX_COUNT = off::MODEL_VERTEX_X = 0;
+        off::MODEL_VERTEX_Y = off::MODEL_VERTEX_Z = off::MODEL_ANIM_GROUPS = 0;
+        off::NPC_GET_MODEL_ENTRY = off::NPC_MODEL_RESOLVER = 0;
+        layout::set(layout::Field::RuntimeModelGeometry, layout::State::Unavailable,
+                    "RuntimeModel structural validation failed");
+    };
+    auto fail = [&](const char* why) {
+        lines.push_back(string("MODEL-FAIL ") + why);
+        clear();
+        return false;
+    };
+    if (!off::RUNTIME_MODEL_VTABLE || !M.isRdata(M.base + off::RUNTIME_MODEL_VTABLE))
+        return fail("vtable is absent or outside .rdata");
+    auto readPtr = [&](uptr a) -> uptr { uptr v = 0; return pe::safeReadVal(a, v) ? v : 0; };
+    const uptr vt = M.base + off::RUNTIME_MODEL_VTABLE;
+    const uptr clone = readPtr(vt + 0x80);
+    const uptr animate = readPtr(vt + 0x98);
+    const uptr scale = readPtr(vt + 0x100);
+    if (!clone || !M.isText(clone)) return fail("vtable +0x80 is not executable");
+    if (!animate || !M.isText(animate)) return fail("vtable +0x98 is not executable");
+    if (!scale || !M.isText(scale)) return fail("vtable +0x100 is not executable");
+    if (off::RUNTIME_MODEL_CLONE && clone != M.base + off::RUNTIME_MODEL_CLONE)
+        return fail("clone target mismatch");
+    if (off::RUNTIME_MODEL_APPLY_ANIM && animate != M.base + off::RUNTIME_MODEL_APPLY_ANIM)
+        return fail("animation target mismatch");
+    if (off::RUNTIME_MODEL_SCALE && scale != M.base + off::RUNTIME_MODEL_SCALE)
+        return fail("scale target mismatch");
+    if (off::MODEL_VERTEX_COUNT != 0x28 || off::MODEL_VERTEX_X != 0x40 ||
+        off::MODEL_VERTEX_Y != 0x58 || off::MODEL_VERTEX_Z != 0x70)
+        return fail("unexpected vertex layout");
+    layout::set(layout::Field::RuntimeModelGeometry, layout::State::Validated,
+                "exact 240-7 vtable and vertex layout");
+    lines.push_back("MODEL-OK   RuntimeModel vtable/geometry validated");
+    return true;
 }
 
 inline bool cacheLoad(const CacheKey& k, vector<string>& lines) {
@@ -419,6 +476,9 @@ inline bool init(uptr base) {
 
     if (detail::cacheLoad(key, lines)) {
         detail::cacheSavedBuildMatch = true;
+        if (detail::validateRuntimeModelLayout(M, lines))
+            layout::set(layout::Field::RuntimeModelGeometry, layout::State::Resolved,
+                        "per-build cache: RuntimeModel geometry");
         validateLive(base, lines);
         reportLines(lines);
         return true;
@@ -817,7 +877,24 @@ inline bool init(uptr base) {
         if (!layout::available(layout::Field::EntityDefinition))
             layout::set(layout::Field::EntityDefinition, layout::State::Validated,
                         "test_recipes.py exact 240-7 npcName pair");
-        lines.push_back("COMPAT    exact 240-7 fallback fields are fingerprint-gated");
+        // These are RVAs, never absolute IDA VAs. Object fields below are
+        // displacements and must not be rebased by consumers.
+        off::RUNTIME_MODEL_VTABLE     = 0xBFE358;
+        off::RUNTIME_MODEL_CTOR       = 0x660140;
+        off::RUNTIME_MODEL_CLONE      = 0x641F80;
+        off::RUNTIME_MODEL_APPLY_ANIM = 0x642960;
+        off::RUNTIME_MODEL_TRANSFORM  = 0x643390;
+        off::RUNTIME_MODEL_INVALIDATE = 0x642910;
+        off::RUNTIME_MODEL_SCALE      = 0x6442C0;
+        off::MODEL_VERTEX_COUNT = 0x28;
+        off::MODEL_VERTEX_X = 0x40;
+        off::MODEL_VERTEX_Y = 0x58;
+        off::MODEL_VERTEX_Z = 0x70;
+        off::MODEL_ANIM_GROUPS = 0x1B8;
+        off::NPC_GET_MODEL_ENTRY = 0xA4D80;
+        off::NPC_MODEL_RESOLVER = 0x5CEF80;
+        lines.push_back("COMPAT    exact 240-7 RuntimeModel values installed as RVAs");
+        detail::validateRuntimeModelLayout(M, lines);
     }
 
     // ---- install: live-validate, cache, report ------------------------------

@@ -185,6 +185,13 @@ EXPECT = {
     'entityDefPtr': 0x730, 'defName': 0x8,
     'containerBuckets': 0x154C500, 'containerMask': 0x154C508,
     'getVarbit': 0x5B52C0,
+    'runtimeModelVtable': 0xBFE358, 'runtimeModelCtor': 0x660140,
+    'runtimeModelClone': 0x641F80, 'runtimeModelApplyAnim': 0x642960,
+    'runtimeModelTransform': 0x643390, 'runtimeModelInvalidate': 0x642910,
+    'runtimeModelScale': 0x6442C0,
+    'modelVertexCount': 0x28, 'modelVertexX': 0x40,
+    'modelVertexY': 0x58, 'modelVertexZ': 0x70, 'modelAnimGroups': 0x1B8,
+    'npcGetModelEntry': 0xA4D80, 'npcModelResolver': 0x5CEF80,
 }
 
 FUNCS = {
@@ -196,6 +203,22 @@ FUNCS = {
 }
 
 ok, bad = 0, []
+
+# RuntimeModel values are exact-build facts, not pattern-derived guesses. Keep
+# these assertions beside the other 240-7 expectations so changing the native
+# resolver slots requires updating the executable specification too.
+for key, value in {
+    'runtimeModelVtable': 0xBFE358, 'runtimeModelCtor': 0x660140,
+    'runtimeModelClone': 0x641F80, 'runtimeModelApplyAnim': 0x642960,
+    'runtimeModelTransform': 0x643390, 'runtimeModelInvalidate': 0x642910,
+    'runtimeModelScale': 0x6442C0, 'modelVertexCount': 0x28,
+    'modelVertexX': 0x40, 'modelVertexY': 0x58, 'modelVertexZ': 0x70,
+    'modelAnimGroups': 0x1B8, 'npcGetModelEntry': 0xA4D80,
+    'npcModelResolver': 0x5CEF80,
+}.items():
+    good = EXPECT[key] == value
+    print(f"exact 240-7: {key} = {hex(EXPECT[key])}", 'OK' if good else 'FAIL')
+    ok += good
 
 # client cell from stat leaves
 for fn in ('getStatEffectiveLevel',):

@@ -44,6 +44,29 @@ namespace kk::off {
 inline std::uintptr_t WORLD_TO_SCREEN = 0;
 inline std::uintptr_t DO_ACTION       = 0;
 
+// RuntimeModel function/vtable RVAs and object-relative geometry fields.
+// Function/vtable values are RVAs added to moduleBase(); MODEL_* values are
+// displacements added to a validated RuntimeModel object. They are installed
+// only for an exact, structurally validated 240-7 image.
+inline std::uintptr_t RUNTIME_MODEL_VTABLE     = 0;
+inline std::uintptr_t RUNTIME_MODEL_CTOR       = 0;
+inline std::uintptr_t RUNTIME_MODEL_CLONE      = 0;
+inline std::uintptr_t RUNTIME_MODEL_APPLY_ANIM = 0;
+inline std::uintptr_t RUNTIME_MODEL_TRANSFORM  = 0;
+inline std::uintptr_t RUNTIME_MODEL_INVALIDATE = 0;
+inline std::uintptr_t RUNTIME_MODEL_SCALE      = 0;
+
+inline std::uintptr_t MODEL_VERTEX_COUNT = 0;
+inline std::uintptr_t MODEL_VERTEX_X     = 0;
+inline std::uintptr_t MODEL_VERTEX_Y     = 0;
+inline std::uintptr_t MODEL_VERTEX_Z     = 0;
+inline std::uintptr_t MODEL_ANIM_GROUPS  = 0;
+
+// Diagnostic model-path RVAs. NPC_GET_MODEL_ENTRY is intentionally not called
+// until its managed-pair ABI and ownership semantics are recovered.
+inline std::uintptr_t NPC_GET_MODEL_ENTRY = 0;
+inline std::uintptr_t NPC_MODEL_RESOLVER  = 0;
+
 // ---------------------------------------------------------------------------
 // THE ROOT POINTER + GLOBALS (RVAs from module base).
 //   CLIENT_OBJ_PTR: the stat leaves' shared rip-cell. VARP_ARRAY_PTR: getVarp's
