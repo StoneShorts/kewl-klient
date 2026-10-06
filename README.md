@@ -29,7 +29,7 @@ endpoint you point it at, not a store of ours. What there is:
 - **No network code at all.** We never build a packet. We call the game's own "do this menu action"
   function and let it build and send the packet. That is the single biggest reason this codebase is
   small, and the reason it survives most game updates. (The one exception is the optional plugin
-  hub, which fetches a manifest you point it at — see
+  hub, which fetches a manifest you point it at - see
   [docs/plugin-system.md](docs/plugin-system.md).)
 - **Twenty-five native methods.** That is the entire unsafe surface, all in one file
   (`java/oxclient/Natives.java` — the four input-injection ones, `postChar`/`postKey`/`postMouse`/
