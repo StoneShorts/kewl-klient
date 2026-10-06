@@ -1,6 +1,6 @@
 // Shim of net.runelite.api.MenuEntry (BSD-2, RuneLite), cut to what the ported plugin creates and
 // reads. In RuneLite a RUNELITE-type entry never reaches the server; here it never reaches the game
-// at all -- kewl.rl.MenuPopup draws it and calls its onClick. See Menu.java's header for why the
+// at all -- oxclient.rl.MenuPopup draws it and calls its onClick. See Menu.java's header for why the
 // old plan of injecting these into the client's own menu is not the one being built.
 //
 // NOTHING IS ADDED HERE SPECULATIVELY. Mirroring the game's rows (Menu.java) will eventually want

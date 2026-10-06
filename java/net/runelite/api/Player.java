@@ -1,9 +1,9 @@
 // Shim of net.runelite.api.Player (BSD-2, RuneLite), an Actor with two backings:
 //
-//  - the LOCAL player reads kewl.api.Local through a Supplier (kewl.api.Game.refresh() REPLACES its
+//  - the LOCAL player reads oxclient.api.Local through a Supplier (oxclient.api.Game.refresh() REPLACES its
 //    Local each frame, so a Player capturing one Local would be a frozen snapshot of the player before
 //    the game ever refreshed -- every caller would see tile (0,0) forever);
-//  - OTHER players read a kewl.api.Entity snapshot that ActorTable re-points each frame, exactly like
+//  - OTHER players read a oxclient.api.Entity snapshot that ActorTable re-points each frame, exactly like
 //    NPC, so one Player object per handle survives across ticks for reference comparisons.
 package net.runelite.api;
 
@@ -11,8 +11,8 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
-import kewl.api.Entity;
-import kewl.api.Local;
+import oxclient.api.Entity;
+import oxclient.api.Local;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 
@@ -134,7 +134,7 @@ public class Player extends Actor
 			// still forget the previous account's name before a relog.
 			return "";
 		}
-		return ActorTable.nameOf(this, () -> kewl.Natives.entityName(l.uid(), true));
+		return ActorTable.nameOf(this, () -> oxclient.Natives.entityName(l.uid(), true));
 	}
 
 	// -- upstream surface ------------------------------------------------------------------------------

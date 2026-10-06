@@ -6,9 +6,9 @@
 // Windows (unlike Wine) not even that reliably: two live runs on 2026-09-05 produced a JVM, a written
 // profile store and not one line of DLL output. So this file writes with the kernel directly:
 //
-//   logf(...)      formats like printf and WriteFile()s to the KEWL_LOG file, appending, sharing the
+//   logf(...)      formats like printf and WriteFile()s to the OXC_LOG file, appending, sharing the
 //                  file with the launcher (which opened it first and keeps writing its [input] trace).
-//                  With no KEWL_LOG it falls back to stdout, which is the direct-inject-from-a-shell
+//                  With no OXC_LOG it falls back to stdout, which is the direct-inject-from-a-shell
 //                  case where stdout is real.
 //   logOpen(path)  opens the file and also installs it as the process's STD_OUTPUT/STD_ERROR handle,
 //                  which is how the JVM's System.out and System.err land in the same file: Java's
@@ -19,7 +19,7 @@
 #include <cstdarg>
 #include <cstdio>
 
-namespace kk {
+namespace oxc {
 
 inline HANDLE& logHandle() {
     static HANDLE h = INVALID_HANDLE_VALUE;
@@ -56,4 +56,4 @@ inline void logf(const char* fmt, ...) {
     }
 }
 
-}  // namespace kk
+}  // namespace oxc

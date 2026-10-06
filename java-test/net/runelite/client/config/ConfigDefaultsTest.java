@@ -31,24 +31,24 @@ public class ConfigDefaultsTest
 	@Test
 	public void declaringTheFullConfigSurvivesPanelConstruction()
 	{
-		// The crash was: declare() -> kewl Setting with an out-of-range default -> JSlider constructor
-		// throws in the old Swing panel -> KewlKlient's catch eats it -> no control panel at all. That
+		// The crash was: declare() -> 0xClient Setting with an out-of-range default -> JSlider constructor
+		// throws in the old Swing panel -> OxClient's catch eats it -> no control panel at all. That
 		// panel is gone (deleted 2026-09-07), so this asserts the invariant its constructor used to
 		// enforce by accident: every declared setting is one a panel can draw. See
 		// ConfigPanelInvariants for why that is the stronger check.
-		kewl.config.Config kewlConfig = new kewl.config.Config();
-		ConfigManager manager = new ConfigManager(null, kewlConfig);
-		ShortestPathConfig config = manager.getConfig(ShortestPathConfig.class, kewlConfig);
+		oxclient.config.Config oxcConfig = new oxclient.config.Config();
+		ConfigManager manager = new ConfigManager(null, oxcConfig);
+		ShortestPathConfig config = manager.getConfig(ShortestPathConfig.class, oxcConfig);
 		assertEquals(5, config.calculationCutoff());
 
-		ConfigPanelInvariants.assertEverySettingIsRenderable(kewlConfig, "ShortestPathConfig");
+		ConfigPanelInvariants.assertEverySettingIsRenderable(oxcConfig, "ShortestPathConfig");
 		// The count is DERIVED, not a magic number: hard-coding it meant every new @ConfigItem
 		// (autoWalkClickDelay, added 2026-09-06 for the ground-click walker) failed this test for the
 		// wrong reason. What must hold is the invariant -- every visible @ConfigItem becomes exactly
 		// one setting.
 		int expected = visibleConfigItems();
 		assertTrue("no @ConfigItems found -- reflection broke, not the config", expected > 0);
-		assertEquals(expected, kewlConfig.all().size());
+		assertEquals(expected, oxcConfig.all().size());
 	}
 
 	/** @ConfigItem methods the panel is expected to show: all of them except the hidden ones. */

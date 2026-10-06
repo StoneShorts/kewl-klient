@@ -1,8 +1,8 @@
 // Shim of net.runelite.client.config.ConfigManager (BSD-2, RuneLite).
 //
 // The real one persists to a properties file and hands back injected config interfaces. Here a config
-// interface becomes a java.lang.reflect.Proxy over kewl's Setting system: walking the interface's
-// @ConfigItem methods declares the matching kewl settings, so the control panel grows real controls
+// interface becomes a java.lang.reflect.Proxy over 0xClient's Setting system: walking the interface's
+// @ConfigItem methods declares the matching 0xClient settings, so the control panel grows real controls
 // (checkbox, slider, colour swatch, enum drop-down) that the plugin never wrote.
 //
 // Defaults come from the interface's default methods. Changes flow both ways: the panel edits the
@@ -19,42 +19,42 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.EventBus;
-import kewl.config.Setting;
+import oxclient.config.Setting;
 
 public class ConfigManager
 {
 	private final EventBus eventBus;
-	/** The kewl settings used when a config interface is requested without one, e.g. via a plugin's
+	/** The 0xClient settings used when a config interface is requested without one, e.g. via a plugin's
 	 *  own @Provides method that only passes the ConfigManager. */
-	private final kewl.config.Config defaultKewlConfig;
+	private final oxclient.config.Config defaultOxcConfig;
 	private final Map<Class<?>, Object> configs = new ConcurrentHashMap<>();
 
-	public ConfigManager(EventBus eventBus, kewl.config.Config defaultKewlConfig)
+	public ConfigManager(EventBus eventBus, oxclient.config.Config defaultOxcConfig)
 	{
 		this.eventBus = eventBus;
-		this.defaultKewlConfig = defaultKewlConfig;
+		this.defaultOxcConfig = defaultOxcConfig;
 	}
 
 	/**
-	 * Build (or return the cached) proxy for a config interface. {@code kewlConfig} is the settings
+	 * Build (or return the cached) proxy for a config interface. {@code oxcConfig} is the settings
 	 * object of the plugin adapter this config belongs to; declared settings appear in the control
 	 * panel under that plugin.
 	 */
 	@SuppressWarnings("unchecked")
-	public <T extends Config> T getConfig(Class<T> iface, kewl.config.Config kewlConfig)
+	public <T extends Config> T getConfig(Class<T> iface, oxclient.config.Config oxcConfig)
 	{
-		return (T) configs.computeIfAbsent(iface, i -> buildProxy(i, kewlConfig));
+		return (T) configs.computeIfAbsent(iface, i -> buildProxy(i, oxcConfig));
 	}
 
 	@SuppressWarnings("unchecked")
 	public <T extends Config> T getConfig(Class<T> iface)
 	{
-		return (T) configs.computeIfAbsent(iface, i -> buildProxy(i, defaultKewlConfig));
+		return (T) configs.computeIfAbsent(iface, i -> buildProxy(i, defaultOxcConfig));
 	}
 
-	private Object buildProxy(Class<?> iface, kewl.config.Config kewlConfig)
+	private Object buildProxy(Class<?> iface, oxclient.config.Config oxcConfig)
 	{
-		// Map @ConfigItem keyName -> kewl Setting, declared in interface order so the panel reads
+		// Map @ConfigItem keyName -> 0xClient Setting, declared in interface order so the panel reads
 		// top to bottom the way the plugin's source does.
 		Map<String, Setting> byKey = new ConcurrentHashMap<>();
 		for (Method m : iface.getMethods())
@@ -69,7 +69,7 @@ public class ConfigManager
 				continue; // the plugin reads it, but the panel must not show it; the proxy answers
 						  // it from the interface's own default
 			}
-			if (kewlConfig == null || kewlConfig.get(item.keyName()) != null)
+			if (oxcConfig == null || oxcConfig.get(item.keyName()) != null)
 			{
 				continue; // already declared
 			}
@@ -82,8 +82,8 @@ public class ConfigManager
 			{
 				def = null;
 			}
-			declare(kewlConfig, m, item, def);
-			Setting s = kewlConfig.get(item.keyName());
+			declare(oxcConfig, m, item, def);
+			Setting s = oxcConfig.get(item.keyName());
 			if (s != null)
 			{
 				byKey.put(item.keyName(), s);
@@ -118,8 +118,8 @@ public class ConfigManager
 		eventBus.post(ev);
 	}
 
-	/** Translate one config method into the kewl setting kind the panel knows how to draw. */
-	private void declare(kewl.config.Config kewlConfig, Method m, ConfigItem item, Object def)
+	/** Translate one config method into the 0xClient setting kind the panel knows how to draw. */
+	private void declare(oxclient.config.Config oxcConfig, Method m, ConfigItem item, Object def)
 	{
 		Class<?> type = m.getReturnType();
 		String key = item.keyName();
@@ -129,7 +129,7 @@ public class ConfigManager
 
 		if (type == boolean.class)
 		{
-			kewlConfig.bool(key, label, desc, def instanceof Boolean b && b);
+			oxcConfig.bool(key, label, desc, def instanceof Boolean b && b);
 		}
 		else if (type == int.class)
 		{
@@ -140,32 +140,32 @@ public class ConfigManager
 			int min = range != null ? range.min() : 0;
 			int max = range != null ? range.max() : Integer.MAX_VALUE;
 			int value = def instanceof Integer i ? i : 0;
-			kewlConfig.number(key, label, desc, Math.max(min, Math.min(max, value)), min, max);
+			oxcConfig.number(key, label, desc, Math.max(min, Math.min(max, value)), min, max);
 		}
 		else if (type == double.class)
 		{
-			// RuneLite's NPC Indicators declares `double borderWidth()`; kewl has no fractional setting
+			// RuneLite's NPC Indicators declares `double borderWidth()`; 0xClient has no fractional setting
 			// kind, so a double becomes the same INT slider an int gets (rounded default, @Range
 			// honoured). Whole-pixel widths are all the Java2D BasicStroke here ever needs, and a
 			// text box for "2.0" was the alternative -- unusable from the ImGui strip.
 			int min = range != null ? range.min() : 0;
 			int max = range != null ? range.max() : Integer.MAX_VALUE;
 			int value = def instanceof Double d ? (int) Math.round(d) : 0;
-			kewlConfig.number(key, label, desc, Math.max(min, Math.min(max, value)), min, max);
+			oxcConfig.number(key, label, desc, Math.max(min, Math.min(max, value)), min, max);
 		}
 		else if (type == Color.class)
 		{
-			kewlConfig.colour(key, label, desc, def instanceof Color c ? c : Color.WHITE);
+			oxcConfig.colour(key, label, desc, def instanceof Color c ? c : Color.WHITE);
 		}
 		else if (type == Keybind.class)
 		{
-			// kewl hotkeys are F1-F8; store the F-index (0 = not set) in an INT setting.
+			// 0xClient hotkeys are F1-F8; store the F-index (0 = not set) in an INT setting.
 			int fIndex = 0;
 			if (def instanceof Keybind k && k.getKeyCode() >= KeyEvent.VK_F1)
 			{
 				fIndex = k.getKeyCode() - KeyEvent.VK_F1 + 1;
 			}
-			kewlConfig.number(key, label, desc, fIndex, 0, 8);
+			oxcConfig.number(key, label, desc, fIndex, 0, 8);
 		}
 		else if (type.isEnum())
 		{
@@ -177,11 +177,11 @@ public class ConfigManager
 				Class<? extends Enum> ec = (Class<? extends Enum>) type;
 				e = ec.getEnumConstants()[0];
 			}
-			kewlConfig.enumeration(key, label, desc, e);
+			oxcConfig.enumeration(key, label, desc, e);
 		}
 		else
 		{
-			kewlConfig.text(key, label, desc, def == null ? "" : String.valueOf(def));
+			oxcConfig.text(key, label, desc, def == null ? "" : String.valueOf(def));
 		}
 	}
 
@@ -259,7 +259,7 @@ public class ConfigManager
 				{
 					return read(s, method.getReturnType());
 				}
-				// No kewlConfig was supplied (tests, or a config read before registration): use the
+				// No oxcConfig was supplied (tests, or a config read before registration): use the
 				// interface's own default.
 				Object def = lookupDefault(iface, method);
 				if (def != null || method.getReturnType() == String.class)

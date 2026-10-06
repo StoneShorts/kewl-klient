@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# tools/wine-setup.sh -- build KewlKlient on Linux (llvm-mingw cross) and assemble a Wine-test dist.
+# tools/wine-setup.sh -- build 0xClient on Linux (llvm-mingw cross) and assemble a Wine-test dist.
 # See tools/wine.md for the one-time setup and how to run the result.
 #
 #   tools/wine-setup.sh                       # build build/wine-dist/
-#   KEWL_WINJDK=jdk-17.0.20.1+1-jre tools/wine-setup.sh   # java= path (C:\ form) for the ini
+#   OXC_WINJDK=jdk-17.0.20.1+1-jre tools/wine-setup.sh   # java= path (C:\ form) for the ini
 #
 # Env it honours:
 #   LLVM_MINGW  where the toolchain lives (default: first /opt/llvm-mingw-* or /tmp/llvm-mingw-*)
-#   KEWL_WINJDK Windows path of the JRE for kewlklient.ini (default jdk-17* found in drive_c)
+#   OXC_WINJDK Windows path of the JRE for 0xclient.ini (default jdk-17* found in drive_c)
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -48,25 +48,25 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 EOF
 "${CMAKE}" -B "${BUILD}" -G "Unix Makefiles" \
     -DCMAKE_TOOLCHAIN_FILE="${BUILD}/toolchain.cmake" \
-    -DKEWL_DIST="${PWD}/build/wine-dist" . >/dev/null
+    -DOXC_DIST="${PWD}/build/wine-dist" . >/dev/null
 "${CMAKE}" --build "${BUILD}"
 
 echo "== dist"
 DIST=build/wine-dist
 mkdir -p "${DIST}"
-cp build/dist/kewlklient.jar "${DIST}/"
+cp build/dist/0xclient.jar "${DIST}/"
 "${CXX}" -O2 -static -o "${DIST}/wine_inject.exe" tools/wine_inject.cpp
-if [ ! -f "${DIST}/kewlklient.ini" ]; then
-    WINJDK=${KEWL_WINJDK:-$(ls -d ~/.wine/drive_c/jdk* 2>/dev/null | head -1 | xargs -r basename)}
+if [ ! -f "${DIST}/0xclient.ini" ]; then
+    WINJDK=${OXC_WINJDK:-$(ls -d ~/.wine/drive_c/jdk* 2>/dev/null | head -1 | xargs -r basename)}
     [ -n "${WINJDK}" ] || { echo "no Windows JRE under ~/.wine/drive_c -- see tools/wine.md"; exit 1; }
-    printf '[kewlklient]\njava=C:\\%s\n' "${WINJDK}" > "${DIST}/kewlklient.ini"
-    echo "   wrote kewlklient.ini -> java=C:\\${WINJDK} (edit if that is not your JRE)"
+    printf '[0xclient]\njava=C:\\%s\n' "${WINJDK}" > "${DIST}/0xclient.ini"
+    echo "   wrote 0xclient.ini -> java=C:\\${WINJDK} (edit if that is not your JRE)"
 fi
-# KewlKlient.exe and kewlklient.dll land in DIST directly (KEWL_DIST above).
+# 0xClient.exe and 0xclient.dll land in DIST directly (OXC_DIST above).
 
 echo
 echo "Done. To test:"
 echo "  cd /path/to/osclient && WINEDEBUG=-all wine osclient.exe > /tmp/osrs-wine.log 2>&1 &"
-echo "  cd ${DIST} && wine wine_inject.exe \"Z:${PWD}/${DIST}/kewlklient.dll\""
+echo "  cd ${DIST} && wine wine_inject.exe \"Z:${PWD}/${DIST}/0xclient.dll\""
 echo "  -- or the whole thing at once (launcher spawns + injects + embeds the game):"
 echo "  tools/launcher-smoke.sh     # offline strip check + live launcher + the manual probes"

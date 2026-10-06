@@ -23,7 +23,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 // Ported from RuneLite's Player Indicators (net.runelite.client.plugins.playerindicators) onto the
-// kewl shim. Group and key names are upstream's.
+// 0xClient shim. Group and key names are upstream's.
 //
 // OMITTED (not stubbed), each naming what it waits on -- on this shim every other player is an
 // "other", because no membership list is readable:
@@ -35,9 +35,9 @@
 //   drawTeamMemberNames / teamMemberColor (19,110,247)        team cape needs the appearance read
 //   colorPlayerMenu / clanMenuIcons                           the game menu is unreadable; no rank sprites
 //
-// Upstream defaults draw NOTHING (own and others both Disabled). kewl turns both on (2026-09-06),
+// Upstream defaults draw NOTHING (own and others both Disabled). 0xClient turns both on (2026-09-06),
 // because this plugin is the client's player visuals now -- see the "Render style" section below,
-// which is the other kewl extension here.
+// which is the other 0xClient extension here.
 package net.runelite.client.plugins.playerindicators;
 
 import java.awt.Color;
@@ -61,14 +61,14 @@ public interface PlayerIndicatorsConfig extends Config
 	)
 	String highlightSection = "section";
 
-	// kewl extension, not in upstream: upstream's Player Indicators draws a NAME and nothing else,
+	// 0xClient extension, not in upstream: upstream's Player Indicators draws a NAME and nothing else,
 	// because RuneLite has separate plugins for the rest. Here this plugin IS the client's player
-	// visuals -- it replaces the worked example kewl.plugins.PlayerVisuals, which drew a box -- so it
+	// visuals -- it replaces the worked example oxclient.plugins.PlayerVisuals, which drew a box -- so it
 	// grew the same two render styles NPC Indicators has, drawn the same way (Actor.getConvexHull /
 	// Actor.getCanvasTilePoly: the actor's own position and its own ground height, never a widget).
 	@ConfigSection(
 		name = "Render style",
-		description = "What to draw over a highlighted player (kewl extension; upstream draws only the name)",
+		description = "What to draw over a highlighted player (0xClient extension; upstream draws only the name)",
 		position = 98
 	)
 	String renderStyleSection = "renderStyleSection";
@@ -113,7 +113,7 @@ public interface PlayerIndicatorsConfig extends Config
 		return 20;
 	}
 
-	// @Range for the shim: kewl draws ints as sliders, and an unbounded width slider is unusable.
+	// @Range for the shim: 0xClient draws ints as sliders, and an unbounded width slider is unusable.
 	@Range(min = 1, max = 8)
 	@ConfigItem(
 		position = 3,
@@ -137,7 +137,7 @@ public interface PlayerIndicatorsConfig extends Config
 	)
 	default HighlightSetting highlightOwnPlayer()
 	{
-		return HighlightSetting.ENABLED;      // kewl: on by default -- this is the client's player visuals now
+		return HighlightSetting.ENABLED;      // 0xClient: on by default -- this is the client's player visuals now
 	}
 
 	@Alpha
@@ -163,7 +163,7 @@ public interface PlayerIndicatorsConfig extends Config
 	)
 	default HighlightSetting highlightOthers()
 	{
-		return HighlightSetting.ENABLED;      // kewl: on by default (upstream keeps others off)
+		return HighlightSetting.ENABLED;      // 0xClient: on by default (upstream keeps others off)
 	}
 
 	@Alpha

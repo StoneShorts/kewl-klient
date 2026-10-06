@@ -10,20 +10,20 @@ else's file, not your plugin's.
 
 ## 1. A built-in plugin
 
-Extend `kewl.Plugin`, override what you need, add one line to the list. This one draws a marker on
+Extend `oxclient.Plugin`, override what you need, add one line to the list. This one draws a marker on
 the nearest cow and counts them:
 
 ```java
-package kewl.plugins;
+package oxclient.plugins;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Point;
 
-import kewl.Plugin;
-import kewl.api.Entity;
-import kewl.api.Npcs;
-import kewl.ui.Hud;
+import oxclient.Plugin;
+import oxclient.api.Entity;
+import oxclient.api.Npcs;
+import oxclient.ui.Hud;
 
 public final class CowSpotter extends Plugin {
 
@@ -46,14 +46,14 @@ public final class CowSpotter extends Plugin {
 }
 ```
 
-The registry is a list, and the list **is** the registry — in `java/kewl/KewlKlient.java`:
+The registry is a list, and the list **is** the registry — in `java/oxclient/OxClient.java`:
 
 ```java
 private static final List<Plugin> PLUGINS = new ArrayList<>(List.of(
-        new kewl.plugins.PlayerVisuals().markDeveloper(),   // scaffolding: grouped under "Developer"
-        new kewl.plugins.NpcVisuals().markDeveloper(),
-        new kewl.plugins.Woodcutter(),
-        new kewl.plugins.CowSpotter()          // <- yours
+        new oxclient.plugins.PlayerVisuals().markDeveloper(),   // scaffolding: grouped under "Developer"
+        new oxclient.plugins.NpcVisuals().markDeveloper(),
+        new oxclient.plugins.Woodcutter(),
+        new oxclient.plugins.CowSpotter()          // <- yours
 ));
 ```
 
@@ -62,7 +62,7 @@ with a slider and a colour picker you never wrote. No scanning, no annotation pr
 descriptor file — nothing that can silently fail to find your class.
 
 The list's **order is load-bearing**: panel edit records name plugins by index into it
-(`KewlKlient.plugins().get(i)`), so it is never re-sorted at runtime, and hub-installed plugins are
+(`OxClient.plugins().get(i)`), so it is never re-sorted at runtime, and hub-installed plugins are
 appended, never spliced in.
 
 #### Developer scaffolding
@@ -77,11 +77,11 @@ unaware of how the panel groups them), and a plugin that knows it is a test rig 
 Both panels then draw them the same way: sorted below everything else — below the pins too — under a
 collapsed **Developer** heading, one click from visible. Nothing else changes: they are still
 switchable, still keep their index in the registry, and the mark does not touch what is on by default
-(`KewlKlient.defaultOn`).
+(`OxClient.defaultOn`).
 
 Across the panel bridge the mark rides in the per-plugin flags word — the `int32` after `enabled`
 that used to be `hasConfig`, whose bit0 still means exactly "has settings"; bit1 is the developer bit
-(`PLUGIN_FLAG_CONFIG` / `PLUGIN_FLAG_DEV` in `kewl.panel.PanelBridge`, `client/bridge.hpp` and
+(`PLUGIN_FLAG_CONFIG` / `PLUGIN_FLAG_DEV` in `oxclient.panel.PanelBridge`, `client/bridge.hpp` and
 `launcher/bridge_layout.hpp`). Spare bits of a field that already existed, so the bridge FORMAT
 stayed at 2 and no side had to relearn an offset.
 
@@ -101,7 +101,7 @@ to the frame thread; `shortestpath` is the worked example (its pathfinder runs o
 
 `onEnable()`/`onDisable()` reset and tear down state. They run on the same thread as everything
 else, are individually caught (a plugin whose hook throws is left **disabled** and its failure is
-surfaced, not swallowed — `kewl.plugin.PluginManager` owns that rule), and are idempotent: asking
+surfaced, not swallowed — `oxclient.plugin.PluginManager` owns that rule), and are idempotent: asking
 for a state the plugin is already in does nothing.
 
 ### Optional metadata
@@ -134,24 +134,24 @@ typo shows up as a plugin that does nothing, not an exception thirty times a sec
 | `config.colour(key, label, description, def)` | colour swatch | `java.awt.Color` | persisted as `#rrggbb`, or `#aarrggbb` when the colour has any alpha (standard ARGB — the order `Color.getRGB()` and `Color.decode` both speak) |
 | `config.enumeration(key, label, description, enumConstant)` | drop-down | the enum constant | options are the enum's constants in declaration order; the *selected option* is stored, not an index, so a plugin that reorders or extends its enum keeps every stored value that still names one |
 
-Two more shapes exist, both arriving through the RuneLite config shim rather than the kewl-native
+Two more shapes exist, both arriving through the RuneLite config shim rather than the oxc-native
 API: a **section** (a grouping header — `RlConfigMeta` recovers `@ConfigSection`s for the bridge so
 both panels draw the grouping) and a **keybind** (an INT setting stored as an F-index, 0 = not set,
 reported as kind 3 in the bridge model so the panel draws it as a hotkey). Both are documented from
 the porting side in [`../java/net/runelite/README.md`](../java/net/runelite/README.md).
 
 **A credential in a Setting is a `config.secret`.** Every setting value is persisted by the profile
-store under `~/.kewlklient/profiles`, so a password declared as a setting is written to that local
+store under `~/.0xclient/profiles`, so a password declared as a setting is written to that local
 config.json in clear -- the trade the autologin plugin makes so the panel can take the login. A
 `secret` is a TEXT setting with `Setting.secret()` set: both panels mask it (`displayText()`, never
 `asText()`, in anything that draws or logs a value), the bridge flags it (bit2) and the launcher edits
 it in a password-mode field. Anyone who would rather not have it in the profile leaves the settings
-empty and uses `~/.kewlklient/autologin.properties` instead (README, "Autologin").
+empty and uses `~/.0xclient/autologin.properties` instead (README, "Autologin").
 
 **Masking is a display rule, not a boundary** (review 2026-09-06). A text setting has to reach the
 launcher process for its field to edit it, so a `secret`'s value crosses the shared-memory bridge in
 clear: it is the setting record's `valueText` in the model region
-(`Local\KewlKlientBridge-<gamePid>`), and a committed edit crosses back in the edit ring's
+(`Local\0xClientBridge-<gamePid>`), and a committed edit crosses back in the edit ring's
 `char text[128]`. Any process running as the same Windows user can `OpenFileMappingW` that name and
 read it for the life of the game process -- the same trust boundary as the profile's `config.json`,
 but without the file's opt-out. Leaving the panel settings empty and using the properties file keeps
@@ -175,14 +175,14 @@ Semantics worth knowing:
 
 ## 3. Lifecycle and who owns it
 
-`kewl.plugin.PluginManager` is the only thing that transitions a plugin. Four callers arrive there —
+`oxclient.plugin.PluginManager` is the only thing that transitions a plugin. Four callers arrive there —
 the F-key hotkey loop, the Java2D panel, the ImGui launcher's edit ring, and profile switches — and
 none of them call `onEnable` themselves. The manager enforces:
 
 - **Idempotence** — no second `onEnable`, no spurious persistence write.
 - **Exception isolation** — a hook that throws leaves the plugin off and records the failure; the
   tick loop survives. Per-frame `tick()`/`render()` throws are caught per plugin in
-  `KewlKlient.tick` (one broken plugin skips its frame), but nothing suspends a plugin that throws
+  `OxClient.tick` (one broken plugin skips its frame), but nothing suspends a plugin that throws
   every frame — turn it off.
 - **One thread** — transitions outside start-up are queued via `Plugin.later` and run at the top of
   the next frame.
@@ -190,8 +190,8 @@ none of them call `onEnable` themselves. The manager enforces:
 
 ## 4. Profiles
 
-Stored under the client's data directory (`KewlKlient.dataDir()` — `kewl.data.dir` overrides,
-otherwise `~/.kewlklient`):
+Stored under the client's data directory (`OxClient.dataDir()` — `oxclient.data.dir` overrides,
+otherwise `~/.0xclient`):
 
 ```
 <dataDir>/profiles/index.json        the profile list, the active id, and the pins
@@ -222,14 +222,14 @@ otherwise `~/.kewlklient`):
 ## 5. External plugins and the hub
 
 An external plugin is not a second plugin API. It is a jar containing a class that **extends
-`kewl.Plugin`** (directly — a wrapper adapter works too, which is how the ported RuneLite plugins
+`oxclient.Plugin`** (directly — a wrapper adapter works too, which is how the ported RuneLite plugins
 run), loaded into the same client, registered with the same manager, configured by the same config
 model, persisted under the same profiles.
 
 ### The manifest
 
-`hub=` in `kewlklient.ini` (`[kewl]` or `[kewlklient]` section) — or the `KEWL_HUB` environment
-variable, or the `kewl.hub.url` system property, or `"hub"` in `<dataDir>/client.json` — points at a
+`hub=` in `0xclient.ini` (`[oxclient]` or `[0xclient]` section) — or the `OXC_HUB` environment
+variable, or the `oxclient.hub.url` system property, or `"hub"` in `<dataDir>/client.json` — points at a
 manifest. It is either a JSON list of plugin objects or `{"plugins": [...]}`. Each entry:
 
 ```json
@@ -245,12 +245,12 @@ manifest. It is either a JSON list of plugin objects or `{"plugins": [...]}`. Ea
 }
 ```
 
-Validation (`kewl.plugin.hub.HubEntry`) is exactly what the loader depends on:
+Validation (`oxclient.plugin.hub.HubEntry`) is exactly what the loader depends on:
 
 - `id` — 1..64 chars of `[A-Za-z0-9._-]`, starting with an alphanumeric. It becomes a directory name,
   which is why path-shaped ids are rejected outright.
 - `name`, `version`, `mainClass` — non-empty. `mainClass` is checked again after loading, when it has
-  to actually extend `kewl.Plugin`.
+  to actually extend `oxclient.Plugin`.
 - `artifact` — an `https://` URL. A `file:` URL is also accepted: that is how a local hub is
   developed and how the test suite builds one. Anything else (`ftp:`, `jar:`, ...) is rejected.
 - `sha256` — **required**, 64 hex characters. A hub without checksums is a hub asking the user to
@@ -270,7 +270,7 @@ bridge's cap).
 2. Only then does `<dataDir>/external/<id>/<version>.jar` appear (atomic move), so a failed
    checksum never leaves an empty directory pretending something was installed.
 3. `HubLoader` opens a classloader of its own for the jar, loads `mainClass`, refuses anything that
-   is not a `kewl.Plugin` (or that resolved from the client rather than the jar), and instantiates it.
+   is not a `oxclient.Plugin` (or that resolved from the client rather than the jar), and instantiates it.
 4. The plugin is registered with the `PluginManager` — queued onto the frame thread, because the
    registry is frame-thread state — and the active profile immediately applies whatever state it has
    stored for that id. That is how an installed plugin comes back enabled with its settings.
@@ -286,10 +286,10 @@ bridge's cap).
 ### Sideload for development
 
 There is no separate sideload mechanism, on purpose — one loader path, one set of validation rules.
-To run your own jar locally, point `hub=` (or `KEWL_HUB`) at a local manifest that uses `file:` URLs:
+To run your own jar locally, point `hub=` (or `OXC_HUB`) at a local manifest that uses `file:` URLs:
 
 ```
-KEWL_HUB=/home/me/hub/manifest.json
+OXC_HUB=/home/me/hub/manifest.json
 ```
 
 ```json
@@ -308,7 +308,7 @@ list or it does not exist.
 
 ## 5b. The RuneLite entity API the shim offers
 
-A ported plugin (hosted through `kewl.rl.RlitePlugin`) sees kewl's per-frame `Game.npcs()` /
+A ported plugin (hosted through `oxclient.rl.RlitePlugin`) sees 0xClient's per-frame `Game.npcs()` /
 `Game.players()` snapshot through `net.runelite.api`:
 
 | Upstream call | Shim | Notes |
@@ -321,14 +321,14 @@ A ported plugin (hosted through `kewl.rl.RlitePlugin`) sees kewl's per-frame `Ga
 | `getConvexHull()` | 2D hull of a prism (footprint x `Actor.logicalHeight()`) | **an approximation** -- no model access on this build |
 | `NPCComposition` | id + name; combat level 0, size 1, no actions | each stub registers itself with `ShimSupport` (5b-ii), so it says so once instead of returning a silent 0 |
 | `getName()` | `""` until the client yields one; retried every 30 frames | tolerate `""`; `TestActors` reports `named=K/N` |
-| `NpcSpawned` … `PlayerDespawned` | diffed per frame in `kewl.rl.Events`, before `GameTick` | per hosted plugin, so each gets a complete diff |
+| `NpcSpawned` … `PlayerDespawned` | diffed per frame in `oxclient.rl.Events`, before `GameTick` | per hosted plugin, so each gets a complete diff |
 | `OverlayUtil` | `renderPolygon`, `renderTextLocation`, `renderActorOverlay`, `renderImageLocation`, `renderMinimapLocation` | no `TileObject` variant |
 
 Not provided: `getCachedNPCs()`/`getCachedPlayers()` (slot arrays; the handle range is unknown),
 `getInteracting()`, health bars, hitsplats, overhead text, graphics. None of those is a silent
 default any more -- each registers with `ShimSupport` the first time a plugin calls it (5b-ii). The
-`Test Actors` plugin (`kewl.rl.TestActors`, last in the registry) draws hull/tile/name for nearby
-actors and prints one `[actors]` probe line per login to KEWL_LOG.
+`Test Actors` plugin (`oxclient.rl.TestActors`, last in the registry) draws hull/tile/name for nearby
+actors and prints one `[actors]` probe line per login to OXC_LOG.
 
 ### 5b-ii. The camera, and what the shim admits it cannot answer
 
@@ -358,7 +358,7 @@ Still not derivable, and each says why in its own javadoc: **minimap zoom** (the
 the client draws itself, so no pair of projected points measures it -- 4.0 px/tile is the vanilla
 value, cross-checked against the widget's size by `Perspective.minimapScaleNote`), and **world-map
 zoom** (the client provably has no zoom field; feed a measurement in with
-`-Dkewl.worldmap.pixelsPerTile=<value>`).
+`-Doxclient.worldmap.pixelsPerTile=<value>`).
 
 **`ShimSupport` is the registry for everything else.** The rule it enforces: *a stub that returns 0
 is indistinguishable from a real 0*, so no accessor may hand back a placeholder without saying so.
@@ -380,13 +380,13 @@ where the reason names the placeholder and what it costs:
   `VarbitTable`; no client work at all -- item names, enums, stackability), `UNSUPPORTABLE` (looked
   for, shown not to exist -- the two zooms above).
 - `ShimSupport.reasonFor("Client.getMinimapZoom")` answers "is this value real?" for one accessor;
-  `ShimSupport.report()` is the whole list, printed once per session into KEWL_LOG by
+  `ShimSupport.report()` is the whole list, printed once per session into OXC_LOG by
   `RlitePlugin` after ~500 frames.
 
 An accessor that is fully wired -- varps, varbits, widgets, containers, game state, skills, the two
 camera angles -- never appears there at all.
 
-### 5b-i. Sending input: `kewl.api.Input`
+### 5b-i. Sending input: `oxclient.api.Input`
 
 The one API that pushes something INTO the game rather than reading it. It posts window messages
 to NXT's render view (`postChar`/`postKey`/`postMouse` in `client/jvm.hpp`), never `SendInput`, so
@@ -394,7 +394,7 @@ nothing it sends can land in another application. The rule to keep: **text goes 
 (`Input.typeChar`), control keys as KEYDOWN/KEYUP (`Input.key`)** -- posting a letter as a key-down
 would let the game's own TranslateMessage pick the case from the physical shift state and emit a
 second character. Pace keystrokes across frames (there is no `typeText` on purpose) and never log
-what you type; `kewl.plugins.autologin.LoginSequence` is the offline-tested worked example, and
+what you type; `oxclient.plugins.autologin.LoginSequence` is the offline-tested worked example, and
 `Input.target(grab)` tells the log where the messages went. Posted mouse clicks **are** honoured on
 client-240-6 -- the autologin Login click is what submits the form, and the resulting `state 10 -> 20`
 line is the proof (seen live 2026-09-06; this paragraph said "unverified" until then).
@@ -403,9 +403,9 @@ line is the proof (seen live 2026-09-06; this paragraph said "unverified" until 
 
 `net.runelite.client.plugins.npchighlight` and `net.runelite.client.plugins.playerindicators` are
 RuneLite's own plugins, ported source-shaped (upstream group/key names, `@ConfigSection`s, overlay
-classes, `PlayerIndicatorsService`) and registered as two `RlitePlugin` lines in `KewlKlient.PLUGINS`
+classes, `PlayerIndicatorsService`) and registered as two `RlitePlugin` lines in `OxClient.PLUGINS`
 (**default-on since 2026-09-06**, when hull/name/tile were seen at each entity's real height live;
-kewl's own `NpcVisuals`/`PlayerVisuals` are the ones that are now off by default). They are the worked example of a port that has to say what it cannot do:
+0xClient's own `NpcVisuals`/`PlayerVisuals` are the ones that are now off by default). They are the worked example of a port that has to say what it cannot do:
 
 | Item | Status | Why |
 |---|---|---|
@@ -416,9 +416,9 @@ kewl's own `NpcVisuals`/`PlayerVisuals` are the ones that are now off by default
 | outlines, menu recolouring, respawn timer, Tag/Untag, friend/clan/team/party colours, clan rank icons | OMITTED from the panel | no model, no readable game menu, no death read, no membership lists |
 | Player Indicators `PvP` setting | behaves as Disabled | `getWorldType()` is empty until the world id can be read; friend/clan/team colours collapse to "other" for the same reason (`Player.isFriend` and friends are registered gaps) |
 
-Both implement `kewl.rl.StatusSource` (status line: `N npcs · K highlighted · names ok/empty · P
+Both implement `oxclient.rl.StatusSource` (status line: `N npcs · K highlighted · names ok/empty · P
 patterns`; `N players · K drawn · own set/empty · others Disabled/Enabled · names k/n`) and print
-`[npchighlight]` / `[playerindicators]` lines to KEWL_LOG once per login: whether NPC names read at
+`[npchighlight]` / `[playerindicators]` lines to OXC_LOG once per login: whether NPC names read at
 all, whether other players' names read, what the parsed list holds. Two things to know when
 writing the next port: `ConfigManager` now maps a `double` item to the same int slider an `int`
 gets (add a `@Range`, the way `borderWidth` does), and the `Auto-walk` toggle is declared only for
@@ -431,8 +431,8 @@ Each external plugin loads in its own child-first `URLClassLoader`. What that bu
 - A plugin can bundle its own copy of a library without fighting the client's version, and two
   plugins can disagree about a library without either winning.
 - Child-first stops at a short list of parent-first prefixes — `java.*`/`javax.*`/`jdk.*`/`sun.*`,
-  `kewl.*`, and the shim (`net.runelite.*`, `org.slf4j.*`) — because those are **identity**, not
-  bytecode: the client hands a plugin live objects, and a second class named `kewl.Plugin` would make
+  `0xClient.*`, and the shim (`net.runelite.*`, `org.slf4j.*`) — because those are **identity**, not
+  bytecode: the client hands a plugin live objects, and a second class named `oxclient.Plugin` would make
   the first cast a `ClassCastException` nobody could act on.
 - Closing the loader unloads the plugin (that is the remove path).
 
@@ -441,5 +441,5 @@ and nothing in this codebase should be described as one. A `Plugin` runs with ev
 process has: it can read and write files, open sockets, load natives and call the game's memory.
 Installing one from a hub is running someone else's code inside your client, and the hub tab says so
 in those words. The defences that do exist are validation (manifest shape, checksum, the
-`extends kewl.Plugin` check) and failure containment (one plugin's exceptions never kill the tick
+`extends oxclient.Plugin` check) and failure containment (one plugin's exceptions never kill the tick
 loop, the hub, or the other plugins) — not confinement.

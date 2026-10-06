@@ -1,6 +1,6 @@
 // Shim of net.runelite.client.callback.ClientThread (BSD-2, RuneLite).
 //
-// In RuneLite this hops onto the client's own thread. Here everything already runs on KewlKlient's
+// In RuneLite this hops onto the client's own thread. Here everything already runs on OxClient's
 // overlay frame thread, so invoke runs inline from there and queues otherwise (the pathfinder worker
 // is the only caller from another thread; the queue drains at the top of the next frame).
 package net.runelite.client.callback;

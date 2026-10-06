@@ -5,7 +5,7 @@
 // (client/imgui_sw.hpp) into the window's DIB. The DATA, though, still lives in the game process --
 // Java owns the plugin list, the Setting objects, the profiles and the hub, so everything drawn here
 // comes from the shared-memory bridge (client/bridge.hpp, parsed in launcher/main.cpp) and every
-// mutation goes back as an edit record. Edits MUST land in Java through the DLL (see kewl/panel/
+// mutation goes back as an edit record. Edits MUST land in Java through the DLL (see oxclient/panel/
 // PanelBridge): an edit that went around Setting.set would silently do nothing to the plugin.
 //
 // The layout is RuneLite's sidebar in shape -- a 250px body plus a 36px icon rail, four routes
@@ -77,7 +77,7 @@
 //     its old value until the next publish carries the reset one back;
 //   * "Reduced motion" is persisted by launcher/main.cpp, not here: uiReducedMotion() is a plain
 //     accessor precisely so main.cpp's loadPaths/persistCollapse can mirror it to the ini's
-//     [kewl] motion= key, the same way it mirrors uiCollapsed() to sidebar=. This file owns no file
+//     [oxclient] motion= key, the same way it mirrors uiCollapsed() to sidebar=. This file owns no file
 //     I/O and no ini path, so the switch is the state and main.cpp is the storage.
 #pragma once
 
@@ -101,7 +101,7 @@
 #include <string>
 #include <vector>
 
-namespace kewl_panel {
+namespace oxc_panel {
 
 // =================================================================================================
 // DESIGN TOKENS
@@ -195,7 +195,7 @@ constexpr float NAV_ALPHA_FLOOR = 0.25f;      // a transition never fades to not
                                               // still-clickable view is worse than a faint one
 
 // ---- behaviour ----------------------------------------------------------------------------------
-constexpr const char* ENABLE_KEY = "enabled"; // kewl.panel.PanelBridge.ENABLE_KEY: a plugin's on/off
+constexpr const char* ENABLE_KEY = "enabled"; // oxclient.panel.PanelBridge.ENABLE_KEY: a plugin's on/off
                                               // switch is not a Setting -- setBool("enabled") routes
                                               // to Plugin.setEnabled, every other key to Setting.set
 constexpr double CONFIRM_SECS = 2.0;          // how long a destructive control stays armed
@@ -232,31 +232,34 @@ constexpr float DEBUG_NAME_W  = 0.6f;         // the debug list's name column, a
 // -------------------------------------------------------------------------------------------------
 namespace theme {
 // planes, dark to light
-constexpr ImU32 STRUCT     = IM_COL32( 18,  18,  22, 255);  // the rail: the deepest, heaviest plane
-constexpr ImU32 CANVAS     = IM_COL32( 28,  28,  32, 255);  // the body: the page rows sit on
-constexpr ImU32 ROW        = IM_COL32( 38,  38,  44, 255);  // a row / button at rest
-constexpr ImU32 ROW_HOVER  = IM_COL32( 48,  48,  56, 255);  // ...under the pointer
-constexpr ImU32 ROW_PRESS  = IM_COL32( 60,  60,  70, 255);  // ...held down: lighter, never darker
-constexpr ImU32 FIELD      = IM_COL32( 22,  22,  26, 255);  // a text field is a WELL, so it is cut
-constexpr ImU32 FIELD_HOVER= IM_COL32( 26,  26,  31, 255);  // into the page rather than raised on it
-constexpr ImU32 LINE       = IM_COL32( 62,  62,  72, 255);  // the only hairlines left: control outlines
+// 0xClient: the logo's palette. Near-black planes with a faint green cast, and ONE saturated
+// colour -- the logo green -- reserved for selection and for what is switched on.
+constexpr ImU32 STRUCT     = IM_COL32(  4,   5,   4, 255);  // the rail: the deepest, heaviest plane
+constexpr ImU32 CANVAS     = IM_COL32( 10,  12,  10, 255);  // the body: the page rows sit on
+constexpr ImU32 ROW        = IM_COL32( 18,  22,  19, 255);  // a row / button at rest
+constexpr ImU32 ROW_HOVER  = IM_COL32( 26,  32,  27, 255);  // ...under the pointer
+constexpr ImU32 ROW_PRESS  = IM_COL32( 36,  46,  38, 255);  // ...held down: lighter, never darker
+constexpr ImU32 FIELD      = IM_COL32(  6,   8,   6, 255);  // a text field is a WELL, so it is cut
+constexpr ImU32 FIELD_HOVER= IM_COL32( 10,  13,  10, 255);  // into the page rather than raised on it
+constexpr ImU32 LINE       = IM_COL32( 36,  48,  38, 255);  // the only hairlines left: control outlines
 
 // text, three steps. Rank is carried here and by weight/leading, because there is no size axis.
-constexpr ImU32 TEXT_1     = IM_COL32(234, 234, 240, 255);  // titles, names, values: what you read
-constexpr ImU32 TEXT_2     = IM_COL32(164, 164, 176, 255);  // descriptions, secondary labels
-constexpr ImU32 TEXT_3     = IM_COL32(118, 118, 130, 255);  // meta, hints, disabled, the wordmark
+constexpr ImU32 TEXT_1     = IM_COL32(228, 236, 230, 255);  // titles, names, values: what you read
+constexpr ImU32 TEXT_2     = IM_COL32(150, 166, 154, 255);  // descriptions, secondary labels
+constexpr ImU32 TEXT_3     = IM_COL32(100, 116, 104, 255);  // meta, hints, disabled
+constexpr ImU32 BRAND      = IM_COL32( 64, 246,  80, 255);  // the logo green: the "0x" of the wordmark
 
 // state
-constexpr ImU32 ACCENT     = IM_COL32(220, 138,   0, 255);  // RuneLite's orange: SELECTION and only
-constexpr ImU32 ACCENT_DIM = IM_COL32(146,  92,   0, 255);  // selection, held down
-constexpr ImU32 ON         = IM_COL32(104, 206, 134, 255);  // a toggle that is on
-constexpr ImU32 ON_HOVER   = IM_COL32(126, 222, 154, 255);
-constexpr ImU32 ON_PRESS   = IM_COL32(146, 234, 172, 255);
-constexpr ImU32 OFF        = IM_COL32( 74,  74,  86, 255);  // an off pill must still read as a
-constexpr ImU32 OFF_HOVER  = IM_COL32( 92,  92, 106, 255);  // CONTROL, not as dead text
-constexpr ImU32 OFF_PRESS  = IM_COL32(110, 110, 126, 255);
-constexpr ImU32 KNOB       = IM_COL32( 24,  24,  28, 255);  // the knob is a hole punched in the pill
-constexpr ImU32 WARN       = IM_COL32(255, 140, 120, 255);  // destructive, errors, bridge down
+constexpr ImU32 ACCENT     = IM_COL32( 64, 246,  80, 255);  // the logo green: SELECTION and only
+constexpr ImU32 ACCENT_DIM = IM_COL32( 38, 150,  50, 255);  // selection, held down
+constexpr ImU32 ON         = IM_COL32( 52, 210,  68, 255);  // a toggle that is on
+constexpr ImU32 ON_HOVER   = IM_COL32( 64, 246,  80, 255);
+constexpr ImU32 ON_PRESS   = IM_COL32(120, 255, 132, 255);
+constexpr ImU32 OFF        = IM_COL32( 46,  58,  48, 255);  // an off pill must still read as a
+constexpr ImU32 OFF_HOVER  = IM_COL32( 60,  76,  63, 255);  // CONTROL, not as dead text
+constexpr ImU32 OFF_PRESS  = IM_COL32( 76,  96,  80, 255);
+constexpr ImU32 KNOB       = IM_COL32(  6,   8,   6, 255);  // the knob is a hole punched in the pill
+constexpr ImU32 WARN       = IM_COL32(255, 110,  96, 255);  // destructive, errors, bridge down
 constexpr ImU32 SCRIM      = IM_COL32(  0,   0,   0, 102);  // behind a modal: 40% black, the one
                                                             // translucent plane in the file, and
                                                             // it sits over the whole strip rather
@@ -281,7 +284,7 @@ struct Setting {
 };
 
 struct PluginModel {
-    // hasConfig is the plugin record's FLAGS word (kewl_bridge::PLUGIN_FLAG_*), not a bool: bit0 is
+    // hasConfig is the plugin record's FLAGS word (oxc_bridge::PLUGIN_FLAG_*), not a bool: bit0 is
     // the "has settings" it has always been -- which is why the developer bit fitted into a field
     // that was already there, with no format bump -- and bit1 is developer scaffolding. The name is
     // kept because main.cpp's reader fills it by that name; read it through the two accessors.
@@ -290,10 +293,10 @@ struct PluginModel {
     std::vector<Setting> settings;
 
     /** Something to configure: the gear, and a clickable name that opens the config view. */
-    bool configurable() const { return (hasConfig & kewl_bridge::PLUGIN_FLAG_CONFIG) != 0; }
+    bool configurable() const { return (hasConfig & oxc_bridge::PLUGIN_FLAG_CONFIG) != 0; }
 
     /** A smoke test or a worked example -- shown under the list's Developer heading, sorted last. */
-    bool developer() const { return (hasConfig & kewl_bridge::PLUGIN_FLAG_DEV) != 0; }
+    bool developer() const { return (hasConfig & oxc_bridge::PLUGIN_FLAG_DEV) != 0; }
 };
 
 struct ProfileModel {
@@ -302,7 +305,7 @@ struct ProfileModel {
 
 struct HubEntry {
     std::string id, name, version, author, desc;
-    std::int32_t flags = 0;               // kewl_bridge::HUB_FLAG_*
+    std::int32_t flags = 0;               // oxc_bridge::HUB_FLAG_*
     std::int32_t installedPluginIdx = -1; // the plugin record this entry installed, or -1
 };
 
@@ -312,7 +315,7 @@ struct Model {
     std::vector<ProfileModel>* profiles = nullptr;  // ditto
     std::vector<HubEntry>* hub = nullptr;           // ditto
     std::int32_t* activeProfile = nullptr;          // ditto: index into *profiles, -1 = none
-    std::int32_t* hubState = nullptr;               // ditto: kewl_bridge::HubState
+    std::int32_t* hubState = nullptr;               // ditto: oxc_bridge::HubState
     std::string* hubError = nullptr;                // ditto: one line, when *hubState == HUB_ERROR
     std::int64_t modelRevision = -1;
     std::int64_t editSeq = 0;                       // hdr->editSeq: the bridge's own edit counter
@@ -328,8 +331,8 @@ using EditSink = std::function<void(std::int32_t kind, std::int32_t pluginIdx,
 void applyStyle();      // once, after ImGui::CreateContext
 void draw(const Model& m, const EditSink& edit);
 
-// Offline probe, same spirit as main.cpp's KEWL_DUMP_FRAME: push a plugin's config view without a
-// mouse to click the gear with. The fake-panel mode (KEWL_FAKE_PANEL + KEWL_FAKE_CONFIG) uses it to
+// Offline probe, same spirit as main.cpp's OXC_DUMP_FRAME: push a plugin's config view without a
+// mouse to click the gear with. The fake-panel mode (OXC_FAKE_PANEL + OXC_FAKE_CONFIG) uses it to
 // make the config view dumpable -- and a view that only a mouse could reach is a view that never
 // gets verified. Out of range is a no-op, so a caller cannot wedge the UI with it.
 void debugPushConfig(int pluginIdx);
@@ -1037,38 +1040,38 @@ inline void commit(const Model& m, const EditSink& edit, std::int32_t kind, std:
     // is the backstop for every other caller, and it cuts on a UTF-8 character boundary rather than
     // mid-sequence, the same rule client/bridge.hpp's truncUtf8 applies.
     std::string clipped;
-    if (kind == kewl_bridge::EDIT_TEXT && text &&
-        std::strlen(text) > kewl_bridge::model::SET_VALUETEXT - 1) {
-        std::size_t cut = kewl_bridge::model::SET_VALUETEXT - 1;
+    if (kind == oxc_bridge::EDIT_TEXT && text &&
+        std::strlen(text) > oxc_bridge::model::SET_VALUETEXT - 1) {
+        std::size_t cut = oxc_bridge::model::SET_VALUETEXT - 1;
         while (cut > 0 && ((unsigned char)text[cut] & 0xC0) == 0x80) --cut;
         clipped.assign(text, cut);
         text = clipped.c_str();
     }
 
-    if (kind == kewl_bridge::EDIT_BOOL && std::strcmp(key, ENABLE_KEY) == 0) {
+    if (kind == oxc_bridge::EDIT_BOOL && std::strcmp(key, ENABLE_KEY) == 0) {
         pl.enabled = intVal ? 1 : 0;                     // Plugin.setEnabled, not a Setting
     } else {
         for (Setting& st : pl.settings) {
             if (st.key != key) continue;
             switch (kind) {
-                case kewl_bridge::EDIT_BOOL:
+                case oxc_bridge::EDIT_BOOL:
                     st.valueInt = intVal ? 1 : 0;
                     st.valueText = intVal ? "on" : "off";     // PanelBridge.valueText's words
                     break;
-                case kewl_bridge::EDIT_INT:
+                case oxc_bridge::EDIT_INT:
                     st.valueInt = (std::int32_t)intVal;
                     // The echo loses the @Units suffix Java bakes into valueText; the next publish
                     // puts it back. Showing "12" where "12 ms" was for one frame is honest.
                     st.valueText = std::to_string((long long)intVal);
                     break;
-                case kewl_bridge::EDIT_ENUM: {
+                case oxc_bridge::EDIT_ENUM: {
                     int idx = (std::int32_t)intVal;
                     st.valueInt = idx;
                     st.enumIndex = idx;
                     if (idx >= 0 && idx < (int)st.options.size()) st.valueText = st.options[idx];
                     break;
                 }
-                case kewl_bridge::EDIT_TEXT:
+                case oxc_bridge::EDIT_TEXT:
                     st.valueInt = 0;
                     st.valueText = text ? text : "";
                     break;
@@ -1182,7 +1185,7 @@ inline void pluginRow(const Model& m, const EditSink& edit, int idx) {
     if (starWidget("##pin", pl.pinned != 0,
                    ImVec2(top.x + SP_1, top.y + (ROW_H - ICON_HIT) * 0.5f))) {
         pl.pinned = pl.pinned ? 0 : 1;               // echo, then the SET_PIN edit carries the value
-        sendEdit(edit, kewl_bridge::EDIT_SET_PIN, idx, "", pl.pinned);
+        sendEdit(edit, oxc_bridge::EDIT_SET_PIN, idx, "", pl.pinned);
     }
 
     // Trailing cluster: the toggle at the edge, the gear inboard of it. The gear's SLOT is always
@@ -1191,7 +1194,7 @@ inline void pluginRow(const Model& m, const EditSink& edit, int idx) {
     const float toggleX = top.x + avail - SP_2 - TOGGLE_W;
     const float gearX   = toggleX - SP_2 - ICON_HIT;
     if (toggleWidget("##on", pl.enabled != 0, ImVec2(toggleX, top.y + (ROW_H - TOGGLE_H) * 0.5f)))
-        commit(m, edit, kewl_bridge::EDIT_BOOL, idx, ENABLE_KEY, pl.enabled ? 0 : 1);
+        commit(m, edit, oxc_bridge::EDIT_BOOL, idx, ENABLE_KEY, pl.enabled ? 0 : 1);
     if (clickable &&
         gearWidget("##gear", ImVec2(gearX, top.y + (ROW_H - ICON_HIT) * 0.5f), rowHovered))
         navPush(idx, top.y);
@@ -1251,7 +1254,7 @@ inline void pluginsView(const Model& m, const EditSink& edit) {
     if (!shown && dev.empty()) ImGui::TextDisabled("(no matches)");
 
     // Developer scaffolding, under its own heading at the bottom: the shim smoke tests and the two
-    // kewl box drawers the RuneLite ports replaced. The user asked for them out of the way, not
+    // 0xClient box drawers the RuneLite ports replaced. The user asked for them out of the way, not
     // deleted -- so they are one press from visible and still switchable, and nothing about their
     // enabled state changes. Closed by default, because the point is a list of the six plugins
     // someone runs rather than ten rows, four of them scaffolding.
@@ -1283,7 +1286,7 @@ inline std::string& textRowBuffer(int pi, const std::string& key) {
     // Reserve the full field width once, at creation. Growing it in place later reallocates, and the
     // pre-growth bytes -- a prefix of whatever was typed, a password included -- are left in freed
     // heap where the deactivate-time wipe cannot reach them (review 2026-09-06).
-    if (s.capacity() < kewl_bridge::model::SET_VALUETEXT) s.reserve(kewl_bridge::model::SET_VALUETEXT);
+    if (s.capacity() < oxc_bridge::model::SET_VALUETEXT) s.reserve(oxc_bridge::model::SET_VALUETEXT);
     return s;
 }
 inline std::string& textRowLiveId() { static std::string s; return s; }
@@ -1301,7 +1304,7 @@ inline void textRowSetLive(int pi, const std::string& key, bool live) {
 // height the style no longer produces would clip the field.
 inline float textRowH() { return LABEL_LINE_H + ImGui::GetFrameHeight() + SP_1; }
 inline float settingRowH(const Setting& st) {
-    return st.kind == kewl_bridge::SET_TEXT ? textRowH() : ROW_H;
+    return st.kind == oxc_bridge::SET_TEXT ? textRowH() : ROW_H;
 }
 
 // One setting row (ConfigView.item): label left, control right -- except text, whose value goes on a
@@ -1316,7 +1319,7 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
     const float  avail = ImGui::GetContentRegionAvail().x;
     const ImVec2 top   = ImGui::GetCursorScreenPos();
     ImDrawList*  dl    = ImGui::GetWindowDrawList();
-    const bool   isText = st.kind == kewl_bridge::SET_TEXT;
+    const bool   isText = st.kind == oxc_bridge::SET_TEXT;
     const float  rowH  = settingRowH(st);
 
     const bool rowRegion = ImGui::IsMouseHoveringRect(top, ImVec2(top.x + avail, top.y + rowH));
@@ -1330,12 +1333,12 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
     // numbers that had to be kept in step by hand).
     float ctrlW = 0.0f;
     switch (st.kind) {
-        case kewl_bridge::SET_BOOL:    ctrlW = TOGGLE_W; break;
-        case kewl_bridge::SET_INT:     ctrlW = (st.max > st.min && (long long)st.max - st.min <= 1000)
+        case oxc_bridge::SET_BOOL:    ctrlW = TOGGLE_W; break;
+        case oxc_bridge::SET_INT:     ctrlW = (st.max > st.min && (long long)st.max - st.min <= 1000)
                                                ? COMBO_W : BOX_W; break;
-        case kewl_bridge::SET_KEYBIND: ctrlW = BOX_W;    break;
-        case kewl_bridge::SET_ENUM:    ctrlW = COMBO_W;  break;
-        case kewl_bridge::SET_COLOR:   ctrlW = SP_4 * 2 + SP_HAIR; break;   // a 34px swatch
+        case oxc_bridge::SET_KEYBIND: ctrlW = BOX_W;    break;
+        case oxc_bridge::SET_ENUM:    ctrlW = COMBO_W;  break;
+        case oxc_bridge::SET_COLOR:   ctrlW = SP_4 * 2 + SP_HAIR; break;   // a 34px swatch
         default:                       ctrlW = isText ? 0.0f : COMBO_W; break;
     }
     const float labelW = (isText ? (avail - ICON_HIT - SP_2) : (ctrlR - ctrlW - SP_2 - top.x));
@@ -1350,7 +1353,7 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
     if (iconButton("##reset", ImVec2(resetX, top.y + (isText ? (LABEL_LINE_H - ICON_HIT) * 0.5f
                                                              : (ROW_H - ICON_HIT) * 0.5f)),
                    resetGlyph))
-        sendEdit(edit, kewl_bridge::EDIT_RESET_SETTING, pi, st.key.c_str(), 0);
+        sendEdit(edit, oxc_bridge::EDIT_RESET_SETTING, pi, st.key.c_str(), 0);
         // No echo on purpose: the default value lives in Java, so the row keeps showing what it had
         // until the next publish delivers the reset value. Faking a default here would be a second
         // source of truth.
@@ -1369,12 +1372,12 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
 
     const float ctrlX = ctrlR - ctrlW;
     switch (st.kind) {
-        case kewl_bridge::SET_BOOL:
+        case oxc_bridge::SET_BOOL:
             if (toggleWidget("##v", st.valueInt != 0, ImVec2(ctrlX, top.y + (ROW_H - TOGGLE_H) * 0.5f)))
-                commit(m, edit, kewl_bridge::EDIT_BOOL, pi, st.key.c_str(), st.valueInt ? 0 : 1);
+                commit(m, edit, oxc_bridge::EDIT_BOOL, pi, st.key.c_str(), st.valueInt ? 0 : 1);
             break;
 
-        case kewl_bridge::SET_INT: {
+        case oxc_bridge::SET_INT: {
             bool bounded = st.max > st.min && (long long)st.max - st.min <= 1000;
             if (bounded) {
                 // ConfigView.slider: bounded ints get a track, value inside the grab.
@@ -1382,32 +1385,32 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
                 ImGui::SetCursorScreenPos(snap(ImVec2(ctrlX, top.y + (ROW_H - ImGui::GetFrameHeight()) * 0.5f)));
                 ImGui::PushItemWidth(COMBO_W);
                 if (ImGui::SliderInt("##v", &v, st.min, st.max, "%d", ImGuiSliderFlags_AlwaysClamp))
-                    commit(m, edit, kewl_bridge::EDIT_INT, pi, st.key.c_str(), v);
+                    commit(m, edit, oxc_bridge::EDIT_INT, pi, st.key.c_str(), v);
                 ImGui::PopItemWidth();
             } else {
                 // ConfigView.spinner: no @Range, so +/- 1 per press through the shared stepper.
                 bool dec = false, inc = false;
                 stepperWidget("##v", ImVec2(ctrlX, top.y + (ROW_H - LABEL_LINE_H) * 0.5f),
                               ImVec2(BOX_W, LABEL_LINE_H), st.valueText.c_str(), &dec, &inc);
-                if (dec) commit(m, edit, kewl_bridge::EDIT_INT, pi, st.key.c_str(), st.valueInt - 1);
-                if (inc) commit(m, edit, kewl_bridge::EDIT_INT, pi, st.key.c_str(), st.valueInt + 1);
+                if (dec) commit(m, edit, oxc_bridge::EDIT_INT, pi, st.key.c_str(), st.valueInt - 1);
+                if (inc) commit(m, edit, oxc_bridge::EDIT_INT, pi, st.key.c_str(), st.valueInt + 1);
             }
             break;
         }
 
-        case kewl_bridge::SET_KEYBIND: {
+        case oxc_bridge::SET_KEYBIND: {
             // ConfigView.keybind: the shim stores a Keybind as an F-index (0 = not set), so the
             // control is a stepper over "not set", F1..F8, not a real key catcher.
             bool dec = false, inc = false;
             stepperWidget("##v", ImVec2(ctrlX, top.y + (ROW_H - LABEL_LINE_H) * 0.5f),
                           ImVec2(BOX_W, LABEL_LINE_H), st.valueText.c_str(), &dec, &inc);
             int f = st.valueInt;
-            if (dec) commit(m, edit, kewl_bridge::EDIT_INT, pi, st.key.c_str(), f > 0 ? f - 1 : 0);
-            if (inc) commit(m, edit, kewl_bridge::EDIT_INT, pi, st.key.c_str(), f < 8 ? f + 1 : 8);
+            if (dec) commit(m, edit, oxc_bridge::EDIT_INT, pi, st.key.c_str(), f > 0 ? f - 1 : 0);
+            if (inc) commit(m, edit, oxc_bridge::EDIT_INT, pi, st.key.c_str(), f < 8 ? f + 1 : 8);
             break;
         }
 
-        case kewl_bridge::SET_ENUM: {
+        case oxc_bridge::SET_ENUM: {
             // Combo of the option strings (the contract's EDIT_ENUM carries an option index, not a
             // raw value -- bridge.hpp's EditKind note). PanelBridge puts the current index in both
             // valueInt and enumIndex; trust valueInt, fall back when it is out of range.
@@ -1419,14 +1422,14 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
             ImGui::PushItemWidth(COMBO_W);
             int sel = cur;
             if (!items.empty() && ImGui::Combo("##v", &sel, items.data(), (int)items.size()))
-                commit(m, edit, kewl_bridge::EDIT_ENUM, pi, st.key.c_str(), sel);
+                commit(m, edit, oxc_bridge::EDIT_ENUM, pi, st.key.c_str(), sel);
             else if (items.empty())
                 ImGui::TextDisabled("%s", st.valueText.c_str());
             ImGui::PopItemWidth();
             break;
         }
 
-        case kewl_bridge::SET_COLOR: {
+        case oxc_bridge::SET_COLOR: {
             // Read-only. The contract has no colour edit kind (kinds 0..3), and Java's own panel
             // cycles a palette with s.set(Color) -- a path the bridge cannot express yet. The
             // outline is one of the few hairlines left in the panel: a swatch that happens to match
@@ -1440,7 +1443,7 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
             break;
         }
 
-        case kewl_bridge::SET_TEXT: {
+        case oxc_bridge::SET_TEXT: {
             // An editable field on the full-width line below the label (ConfigPanel's SOUTH slot).
             // The keyboard handoff that once made this read-only is textInput()'s job now, the same
             // as the search and profile fields. The edit goes out when the field DEACTIVATES after a
@@ -1454,7 +1457,7 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
             // are drawn as '*' and copy is disabled. valueText DOES carry the real value (the field
             // has to round-trip it), which is exactly why nothing else in this file -- tooltip,
             // debug tab, default branch -- may ever print a SET_TEXT's valueText.
-            bool secret = (st.flags & kewl_bridge::FLAG_SECRET) != 0;
+            bool secret = (st.flags & oxc_bridge::FLAG_SECRET) != 0;
             std::string& buf = textRowBuffer(pi, st.key);
             bool live = textRowLive(pi, st.key);
             if (!live) buf = st.valueText;              // not being typed into: mirror the model
@@ -1467,7 +1470,7 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
             // The buffer is therefore sized to the model field exactly: ImGui stops inserting when
             // the next character would not fit with its terminator, and it never splits a multi-byte
             // character to get there.
-            buf.resize(kewl_bridge::model::SET_VALUETEXT, '\0');
+            buf.resize(oxc_bridge::model::SET_VALUETEXT, '\0');
             ImGui::SetCursorScreenPos(snap(ImVec2(top.x, top.y + LABEL_LINE_H)));
             textInput("##v", buf.data(), buf.size(), nullptr, avail,
                       secret ? ImGuiInputTextFlags_Password : 0);
@@ -1475,14 +1478,14 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
             if (ImGui::IsItemActivated()) textRowSetLive(pi, st.key, true);
             if (ImGui::IsItemDeactivated()) {
                 if (ImGui::IsItemDeactivatedAfterEdit())
-                    commit(m, edit, kewl_bridge::EDIT_TEXT, pi, st.key.c_str(), 0, buf.c_str());
+                    commit(m, edit, oxc_bridge::EDIT_TEXT, pi, st.key.c_str(), 0, buf.c_str());
                 textRowSetLive(pi, st.key, false);
                 // A secret's edit buffer is a clear-text password living in a static map for the rest
                 // of the session. It gets re-mirrored from valueText on the next frame (the format
                 // carries the value in clear; that copy is not ours to drop), but nothing is served by
                 // ALSO keeping the typed one here between edits (review 2026-09-06).
                 if (secret) {
-                    buf.resize(kewl_bridge::model::SET_VALUETEXT, '\0');   // also covers the bytes
+                    buf.resize(oxc_bridge::model::SET_VALUETEXT, '\0');   // also covers the bytes
                     SecureZeroMemory(buf.data(), buf.size());              // the strlen shrink left
                     buf.clear();
                 }
@@ -1493,7 +1496,7 @@ inline void settingRow(const Model& m, const EditSink& edit, int pi, int si) {
         default: {
             // A kind from a newer DLL: show, don't invent. A secret must not leak through an unknown
             // kind either, so a newer DLL that flags one keeps it masked here.
-            const char* shown = (st.flags & kewl_bridge::FLAG_SECRET) ? "****" : st.valueText.c_str();
+            const char* shown = (st.flags & oxc_bridge::FLAG_SECRET) ? "****" : st.valueText.c_str();
             const std::string cut = clip(shown, ctrlW);
             textAt(dl, ImVec2(ctrlR - ImGui::CalcTextSize(cut.c_str()).x, centreTextY(top.y, ROW_H)),
                    dcol(theme::TEXT_3), cut.c_str());
@@ -1565,7 +1568,7 @@ inline void configView(const Model& m, const EditSink& edit, int pi) {
     if (pressButton("##reset", isArmed ? "confirm reset?" : "Reset",
                     ImVec2(avail, ROW_H), isArmed)) {
         if (isArmed) {
-            sendEdit(edit, kewl_bridge::EDIT_RESET_PLUGIN, pi, "", 0);
+            sendEdit(edit, oxc_bridge::EDIT_RESET_PLUGIN, pi, "", 0);
             armed = -1;      // sent; the next publish replaces every row with Java's defaults
         } else {
             armed = now;
@@ -1577,7 +1580,7 @@ inline void configView(const Model& m, const EditSink& edit, int pi) {
     ImGui::Dummy(ImVec2(0, SP_2));
 }
 
-// The debug tab's launcher-side half of kewl.ui.DebugView: what the bridge is actually carrying,
+// The debug tab's launcher-side half of oxclient.ui.DebugView: what the bridge is actually carrying,
 // plus the panel's own settings -- this is the only surface the strip owns, so the one preference it
 // has lives here rather than inventing a fifth route for it.
 inline void debugView(const Model& m) {
@@ -1647,7 +1650,7 @@ inline void profilesView(const Model& m, const EditSink& edit) {
         // Echo: a profile Java has not confirmed yet, keyed by its name. The next publish replaces
         // the whole list, so a rejected create simply disappears a frame later.
         m.profiles->push_back({ newName, newName });
-        sendEdit(edit, kewl_bridge::EDIT_PROFILE_CREATE, -1, "", 0, newName);
+        sendEdit(edit, oxc_bridge::EDIT_PROFILE_CREATE, -1, "", 0, newName);
         newName[0] = 0;
     }
     ImGui::Dummy(ImVec2(0, SP_1));
@@ -1681,7 +1684,7 @@ inline void profilesView(const Model& m, const EditSink& edit) {
             bool commitNow = ImGui::IsItemDeactivatedAfterEdit();
             if (commitNow && renameBuf[0]) {
                 pf.name = renameBuf;                 // echo; Java's id never changes
-                sendEdit(edit, kewl_bridge::EDIT_PROFILE_RENAME, -1, "", i, renameBuf);
+                sendEdit(edit, oxc_bridge::EDIT_PROFILE_RENAME, -1, "", i, renameBuf);
             }
             renameIdx = -1;
             endRow(top, ROW_H, avail);
@@ -1695,7 +1698,7 @@ inline void profilesView(const Model& m, const EditSink& edit) {
         const bool rowDown    = ImGui::IsItemActive();
         if (ImGui::IsItemClicked() && !active) {
             *m.activeProfile = i;                    // echo, then the switch edit
-            sendEdit(edit, kewl_bridge::EDIT_PROFILE_SWITCH, -1, "", i);
+            sendEdit(edit, oxc_bridge::EDIT_PROFILE_SWITCH, -1, "", i);
         }
 
         ImU32 surf = rowDown ? theme::ROW_PRESS : (rowHovered ? theme::ROW_HOVER : theme::ROW);
@@ -1720,7 +1723,7 @@ inline void profilesView(const Model& m, const EditSink& edit) {
                 m.profiles->erase(m.profiles->begin() + i);
                 if (*m.activeProfile == i) *m.activeProfile = -1;   // truth arrives with the publish
                 else if (*m.activeProfile > i) *m.activeProfile -= 1;
-                sendEdit(edit, kewl_bridge::EDIT_PROFILE_DELETE, -1, "", i);
+                sendEdit(edit, oxc_bridge::EDIT_PROFILE_DELETE, -1, "", i);
                 armDeleteIdx = -1;
                 // pf is dangling from the erase above, so this row ends here. endRow before PopID,
                 // the same unwind order every other row in the file uses.
@@ -1738,7 +1741,7 @@ inline void profilesView(const Model& m, const EditSink& edit) {
                 std::string dupName = pf.name + " copy";
                 m.profiles->insert(m.profiles->begin() + i + 1, { dupName, dupName });
                 if (*m.activeProfile > i) *m.activeProfile += 1;
-                sendEdit(edit, kewl_bridge::EDIT_PROFILE_DUPLICATE, -1, "", i);
+                sendEdit(edit, oxc_bridge::EDIT_PROFILE_DUPLICATE, -1, "", i);
             }
             if (iconButton("##ren", ImVec2(bx - (ICON_HIT + SP_1) * 2.0f, by), pencilGlyph)) {
                 renameIdx = i;
@@ -1773,8 +1776,8 @@ inline void hubView(const Model& m, const EditSink& edit) {
     ImGui::Dummy(ImVec2(0, SP_1));
 
     if (!m.hub || !m.hubState || !m.hubError) return;
-    const bool loading = *m.hubState == kewl_bridge::HUB_LOADING;
-    const bool errored = *m.hubState == kewl_bridge::HUB_ERROR;
+    const bool loading = *m.hubState == oxc_bridge::HUB_LOADING;
+    const bool errored = *m.hubState == oxc_bridge::HUB_ERROR;
 
     // Search + refresh on one line: the field takes what is left of the button, which needs the
     // width of the word "refresh" plus padding -- narrower and the label clips mid-glyph.
@@ -1792,7 +1795,7 @@ inline void hubView(const Model& m, const EditSink& edit) {
         spinner(ImGui::GetWindowDrawList(), ImVec2(p.x + refreshW * 0.5f, p.y + fieldH * 0.5f),
                 SP_2 - SP_HAIR, dcol(theme::ACCENT));
     } else if (pressButton("##refresh", "refresh", ImVec2(refreshW, fieldH))) {
-        sendEdit(edit, kewl_bridge::EDIT_HUB_REFRESH, -1, "", 0);
+        sendEdit(edit, oxc_bridge::EDIT_HUB_REFRESH, -1, "", 0);
     }
     ImGui::Dummy(ImVec2(0, SP_1));
 
@@ -1813,9 +1816,9 @@ inline void hubView(const Model& m, const EditSink& edit) {
         ++shown;
 
         ImGui::PushID(i);
-        const bool busy      = (he.flags & kewl_bridge::HUB_FLAG_BUSY) != 0;
-        const bool installed = (he.flags & kewl_bridge::HUB_FLAG_INSTALLED) != 0;
-        const bool hasUpdate = (he.flags & kewl_bridge::HUB_FLAG_HAS_UPDATE) != 0;
+        const bool busy      = (he.flags & oxc_bridge::HUB_FLAG_BUSY) != 0;
+        const bool installed = (he.flags & oxc_bridge::HUB_FLAG_INSTALLED) != 0;
+        const bool hasUpdate = (he.flags & oxc_bridge::HUB_FLAG_HAS_UPDATE) != 0;
 
         // The record, laid out by hand: name and version on the first line with the action at its
         // right, author and description under at LEAD_TIGHT -- a hub entry is one paragraph of dense
@@ -1838,9 +1841,9 @@ inline void hubView(const Model& m, const EditSink& edit) {
         ImGui::SetCursorScreenPos(snap(ImVec2(top.x + avail - bw, top.y - SP_HAIR)));
         if (pressButton("##act", busy ? "..." : action, ImVec2(bw, ROW_H - SP_1), false, busy)) {
             if (installed && !hasUpdate)
-                sendEdit(edit, kewl_bridge::EDIT_HUB_REMOVE, -1, "", 0, he.id.c_str());
+                sendEdit(edit, oxc_bridge::EDIT_HUB_REMOVE, -1, "", 0, he.id.c_str());
             else
-                sendEdit(edit, kewl_bridge::EDIT_HUB_INSTALL, -1, "", 0, he.id.c_str());
+                sendEdit(edit, oxc_bridge::EDIT_HUB_INSTALL, -1, "", 0, he.id.c_str());
         }
 
         ImGui::SetCursorScreenPos(snap(ImVec2(top.x, top.y + LEAD_TIGHT + SP_HAIR)));
@@ -1864,7 +1867,7 @@ inline void hubView(const Model& m, const EditSink& edit) {
 }
 
 // The debugPushConfig probe: the only way the config view gets exercised offline (see the header
-// note on KEWL_FAKE_PANEL). Not reached by any input path -- clicks go through the gear and the
+// note on OXC_FAKE_PANEL). Not reached by any input path -- clicks go through the gear and the
 // plugin row, and both set exactly this.
 inline void debugPushConfig(int pluginIdx) {
     uiTab() = TAB_PLUGINS;
@@ -1899,14 +1902,20 @@ inline void headerBar(const Model& m, const EditSink& edit, int top) {
         // The plugin's switch, beside its name -- ConfigPanel duplicates it for the same reason.
         if (toggleWidget("##hon", pl.enabled != 0,
                          ImVec2(p.x + avail - TOGGLE_W, y2 + (HEAD_LINE_2 - TOGGLE_H) * 0.5f)))
-            commit(m, edit, kewl_bridge::EDIT_BOOL, top, ENABLE_KEY, pl.enabled ? 0 : 1);
+            commit(m, edit, oxc_bridge::EDIT_BOOL, top, ENABLE_KEY, pl.enabled ? 0 : 1);
         textAt(dl, ImVec2(p.x, centreTextY(y2, HEAD_LINE_2)), dcol(theme::TEXT_1),
                clip(pl.name.c_str(), avail - TOGGLE_W - SP_2).c_str(), true);
     } else {
-        // The wordmark: small, dim and tracked open. It is the quietest text in the panel on purpose
-        // -- branding is not wayfinding, it is just the answer to "whose window is this".
-        textTracked(dl, ImVec2(p.x, centreTextY(y1, HEAD_LINE_1)), dcol(theme::TEXT_3),
-                    "KEWLKLIENT", TRACK_SMALL, true);
+        // The wordmark: small and tracked open, two-tone like the logo -- "0x" in the brand green,
+        // "CLIENT" dim. It is the quietest text in the panel on purpose: branding is not
+        // wayfinding, it is just the answer to "whose window is this".
+        {
+            const ImVec2 wp(p.x, centreTextY(y1, HEAD_LINE_1));
+            textTracked(dl, wp, dcol(theme::BRAND), "0x", TRACK_SMALL, true);
+            float w = 0.0f;
+            for (const char* q = "0x"; *q; ++q) w += ImGui::CalcTextSize(q, q + 1).x + TRACK_SMALL;
+            textTracked(dl, ImVec2(snap(wp.x + w), wp.y), dcol(theme::TEXT_3), "CLIENT", TRACK_SMALL, true);
+        }
         textAt(dl, ImVec2(p.x, centreTextY(y2, HEAD_LINE_2)), dcol(theme::TEXT_1),
                clip(tabName(uiTab()), avail).c_str(), true);
     }
@@ -1974,7 +1983,7 @@ inline void draw(const Model& m, const EditSink& edit) {
     if (!collapsed) {
         ImGui::SetNextWindowPos(ImVec2(dispW - (float)PANEL_W, 0.0f));
         ImGui::SetNextWindowSize(ImVec2((float)BODY_W, dispH));
-        ImGui::Begin("##kewl.body", nullptr, stripFlags);
+        ImGui::Begin("##oxclient.body", nullptr, stripFlags);
 
         // A pushed index that no longer names a plugin (the game died mid-view, a shrunken model)
         // un-pushes itself rather than drawing from a stale slot.
@@ -1987,7 +1996,7 @@ inline void draw(const Model& m, const EditSink& edit) {
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, viewAlpha());
         headerBar(m, edit, curTop);
 
-        ImGui::BeginChild("##kewl.scroll", ImVec2(0, -footerH()), ImGuiChildFlags_None,
+        ImGui::BeginChild("##oxclient.scroll", ImVec2(0, -footerH()), ImGuiChildFlags_None,
                           stripFlags | ImGuiWindowFlags_NoScrollbar);
         const ImVec2 clipA = ImGui::GetWindowPos();
         const ImVec2 clipB = ImVec2(clipA.x + ImGui::GetWindowWidth(), clipA.y + ImGui::GetWindowHeight());
@@ -2057,7 +2066,7 @@ inline void draw(const Model& m, const EditSink& edit) {
     ImGui::SetNextWindowPos(ImVec2(dispW - (float)RAIL_W, 0.0f));
     ImGui::SetNextWindowSize(ImVec2((float)RAIL_W, dispH));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, theme::f(theme::STRUCT));
-    ImGui::Begin("##kewl.rail", nullptr, stripFlags);
+    ImGui::Begin("##oxclient.rail", nullptr, stripFlags);
     const float savedAlpha = viewAlpha();
     viewAlpha() = 1.0f;
 
@@ -2132,4 +2141,4 @@ inline void draw(const Model& m, const EditSink& edit) {
     viewAlpha() = 1.0f;          // the frame's transition state does not leak into the next frame
 }
 
-}  // namespace kewl_panel
+}  // namespace oxc_panel

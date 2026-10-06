@@ -1,4 +1,4 @@
-// launcher/main.cpp -- KewlKlient.exe: an ImGui launcher that owns the game window.
+// launcher/main.cpp -- 0xClient.exe: an ImGui launcher that owns the game window.
 //
 // One window, two states:
 //   HOME      a title, a big "+ client" button, a status line.
@@ -15,7 +15,7 @@
 // publishes Java's plugin model, the launcher reads it and writes edits back, one registered
 // message per edit batch so the DLL drains the ring instead of polling.
 //
-// Direct injection still works exactly as before: run osclient.exe and inject kewlklient.dll
+// Direct injection still works exactly as before: run osclient.exe and inject 0xclient.dll
 // yourself and the DLL builds its own host window + Java panel. Nothing here is involved. Launcher
 // mode only happens when THIS program spawns the game and posts it the embed message.
 #include <windows.h>
@@ -33,7 +33,7 @@
 #include <optional>
 #include <map>
 #include <sstream>
-#include <io.h>          // _open_osfhandle / _dup2: the KEWL_LOG redirect in WinMain
+#include <io.h>          // _open_osfhandle / _dup2: the OXC_LOG redirect in WinMain
 #include <fcntl.h>
 
 #include "imgui.h"
@@ -51,7 +51,7 @@ namespace {
 // windows and the game-child layout cannot drift apart. Layout code uses effectivePanelW() rather
 // than this constant -- collapsed, the strip is the 36px rail alone -- but the open width is still
 // what the strip is designed around, so the alias stays.
-constexpr int PANEL_W = kewl_panel::PANEL_W;
+constexpr int PANEL_W = oxc_panel::PANEL_W;
 
 // Never squeeze the game to nothing (same floor dllmain.cpp's layoutEmbed uses).
 constexpr int MIN_GAME_W = 800;
@@ -62,7 +62,7 @@ UINT g_msgEmbed     = 0;      // launcher -> game window: "you are being embedde
 UINT g_msgEdit      = 0;      // launcher -> DLL message window: "drain the edit ring"
 bool g_ringFullLogged = false; // set while the edit ring is refusing writes; see writeEdit
 UINT g_msgActivate  = 0;      // launcher -> DLL message window: wParam 1 = activated, 0 = deactivated
-constexpr UINT WM_KEWL_AUTH_NAVIGATE = WM_APP + 41;
+constexpr UINT WM_OXC_AUTH_NAVIGATE = WM_APP + 41;
 
 HWND g_main = nullptr;
 int  g_clientW = 1600, g_clientH = 900;
@@ -75,7 +75,7 @@ bool gamePumps();           // defined by the keyboard-handoff code below; guard
 // The embed marker. Set on the game window BEFORE SetParent so the DLL can detect launcher mode
 // even if the registered message is lost (a registered message that arrives before the DLL has
 // installed its window proc is simply gone; a property sits on the window until it is removed).
-constexpr wchar_t kLauncherProp[] = L"KewlKlientLauncherHwnd";
+constexpr wchar_t kLauncherProp[] = L"0xClientLauncherHwnd";
 
 // Defined further down; the UI and the frame loop both reach for these.
 void layoutEmbed();
@@ -110,10 +110,10 @@ std::wstring iniString(const std::wstring& ini, const wchar_t* key, const wchar_
     // Query each section with an EMPTY fallback: GetPrivateProfileStringW copies the fallback into
     // the buffer when the key is missing, so passing `fallback` to the first call would make buf
     // non-empty and the second call (and with it the whole point of accepting two sections) dead.
-    GetPrivateProfileStringW(L"kewl", key, L"", buf, MAX_PATH, ini.c_str());
+    GetPrivateProfileStringW(L"oxclient", key, L"", buf, MAX_PATH, ini.c_str());
     if (buf[0]) return buf;
-    // The ini the DLL reads uses [kewlklient]; accept either section so one file drives both.
-    GetPrivateProfileStringW(L"kewlklient", key, L"", buf, MAX_PATH, ini.c_str());
+    // The ini the DLL reads uses [0xclient]; accept either section so one file drives both.
+    GetPrivateProfileStringW(L"0xclient", key, L"", buf, MAX_PATH, ini.c_str());
     if (buf[0]) return buf;
     return fallback;
 }
@@ -178,18 +178,18 @@ double nowSeconds() {
 }
 
 // Offline verification probe, in the spirit of the project's "verify pixels via GetDIBits dumps,
-// never screenshots" rule: set KEWL_DUMP_FRAME to a file path and, thirty frames in, the DIB is
+// never screenshots" rule: set OXC_DUMP_FRAME to a file path and, thirty frames in, the DIB is
 // written there as a PAM (P7 RGB_ALPHA -- the format the /tmp/imgui-swtest spike verified with, and
 // readable by ImageMagick). Nothing else about the run changes. A window that paints garbage into
 // its own back buffer looks identical to a working one from outside, so this is how the launcher's
 // raster output gets checked without a human staring at a screen.
 void maybeDumpFrame() {
-    static const char* path = ::getenv("KEWL_DUMP_FRAME");
+    static const char* path = ::getenv("OXC_DUMP_FRAME");
     static int frames = 0;
     if (!path) return;
-    // KEWL_DUMP_EVERY=<seconds> keeps dumping to <path>-N every N seconds, for probes that need to
+    // OXC_DUMP_EVERY=<seconds> keeps dumping to <path>-N every N seconds, for probes that need to
     // see a LATER state than frame 30 (e.g. the status line after an injected click).
-    static const int every = ::getenv("KEWL_DUMP_EVERY") ? ::atoi(::getenv("KEWL_DUMP_EVERY")) : 0;
+    static const int every = ::getenv("OXC_DUMP_EVERY") ? ::atoi(::getenv("OXC_DUMP_EVERY")) : 0;
     ++frames;
     if (frames != 30 && !(every > 0 && frames % (every * 30) == 0)) return;   // ~30 fps
     char suffixPath[512];
@@ -232,22 +232,22 @@ void initImGui() {
 
     // The panel's palette and metrics (Theme.java, tuned for a 250px body). Once: the style is
     // context-global and nothing in the frame loop is allowed to touch it.
-    kewl_panel::applyStyle();
+    oxc_panel::applyStyle();
 }
 
 // ---------------------------------------------------------------------------
 // The shared-memory bridge, client side. See client/bridge.hpp for the layout and who owns what.
-// The parsed model lives in launcher/panel_ui.hpp (kewl_panel::PluginModel) -- the panel draws from
+// The parsed model lives in launcher/panel_ui.hpp (oxc_panel::PluginModel) -- the panel draws from
 // it, so the panel owns its shape and this file only fills it in.
 // ---------------------------------------------------------------------------
-using kewl_panel::PluginModel;
+using oxc_panel::PluginModel;
 
 struct Bridge {
     HANDLE   map  = nullptr;
     HANDLE   mtx  = nullptr;
     unsigned char* base = nullptr;      // whole mapping view
     size_t   size = 0;
-    kewl_bridge::Header* hdr = nullptr;
+    oxc_bridge::Header* hdr = nullptr;
 
     // Why the last open() failed, for the strip's note: "the DLL never created it" was the only
     // message, and it was wrong on the day the mapping WAS there and only its mutex was misnamed
@@ -256,7 +256,7 @@ struct Bridge {
 
     bool open(DWORD pid) {
         close();
-        std::wstring name = L"Local\\KewlKlientBridge-" + std::to_wstring(pid);
+        std::wstring name = L"Local\\0xClientBridge-" + std::to_wstring(pid);
         map = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, name.c_str());
         if (!map) { why = L"no mapping " + name + L" (did launcher mode engage in the DLL?)"; return false; }
         mtx = OpenMutexW(SYNCHRONIZE, FALSE, (name + L"-mtx").c_str());
@@ -272,9 +272,9 @@ struct Bridge {
         MEMORY_BASIC_INFORMATION mbi{};
         if (!VirtualQuery(base, &mbi, sizeof mbi)) { why = L"VirtualQuery failed"; close(); return false; }
         size = mbi.RegionSize;
-        if (size < kewl_bridge::MODEL_OFFSET) { why = L"mapping too small (" + std::to_wstring(size) + L" bytes)"; close(); return false; }
-        hdr = (kewl_bridge::Header*)base;
-        if (hdr->magic != kewl_bridge::MAGIC || hdr->version != kewl_bridge::VERSION) {
+        if (size < oxc_bridge::MODEL_OFFSET) { why = L"mapping too small (" + std::to_wstring(size) + L" bytes)"; close(); return false; }
+        hdr = (oxc_bridge::Header*)base;
+        if (hdr->magic != oxc_bridge::MAGIC || hdr->version != oxc_bridge::VERSION) {
             why = L"header magic/version mismatch (DLL and launcher from different builds?)";
             close(); return false;
         }
@@ -295,10 +295,10 @@ struct Bridge {
 Bridge g_bridge;
 
 std::vector<PluginModel> g_plugins;         // the last parsed model snapshot
-std::vector<kewl_panel::ProfileModel> g_profiles;
-std::vector<kewl_panel::HubEntry> g_hub;
+std::vector<oxc_panel::ProfileModel> g_profiles;
+std::vector<oxc_panel::HubEntry> g_hub;
 std::int32_t g_activeProfile = -1;
-std::int32_t g_hubState = kewl_bridge::HUB_IDLE;
+std::int32_t g_hubState = oxc_bridge::HUB_IDLE;
 std::string g_hubError;
 std::int64_t g_modelRevision = -1;          // the revision g_plugins was built from
 std::wstring g_bridgeNote;                  // one line of bridge state for the panel header
@@ -340,21 +340,21 @@ bool readModel(const unsigned char* p, const unsigned char* end, std::int64_t re
 
     int count = r.i32();
     std::vector<PluginModel> next;
-    if (count < 0 || count > kewl_bridge::MAX_PLUGINS) return false;
+    if (count < 0 || count > oxc_bridge::MAX_PLUGINS) return false;
     next.reserve(count);
     for (int i = 0; i < count && r.ok; ++i) {
         PluginModel pl;
         pl.enabled   = r.i32();
         pl.hasConfig = r.i32();
         pl.hotkey    = r.i32();
-        pl.name   = r.str(kewl_bridge::model::PLUGIN_NAME);
-        pl.desc   = r.str(kewl_bridge::model::PLUGIN_DESC);
-        pl.status = r.str(kewl_bridge::model::PLUGIN_STATUS);
+        pl.name   = r.str(oxc_bridge::model::PLUGIN_NAME);
+        pl.desc   = r.str(oxc_bridge::model::PLUGIN_DESC);
+        pl.status = r.str(oxc_bridge::model::PLUGIN_STATUS);
         int sc = r.i32();
-        if (sc < 0 || sc > kewl_bridge::MAX_SETTINGS_PER_PLUGIN) return false;
+        if (sc < 0 || sc > oxc_bridge::MAX_SETTINGS_PER_PLUGIN) return false;
         pl.settings.reserve(sc);
         for (int s = 0; s < sc && r.ok; ++s) {
-            kewl_panel::Setting st;
+            oxc_panel::Setting st;
             st.kind        = r.i32();
             st.valueInt    = r.i32();
             st.min         = r.i32();
@@ -362,20 +362,20 @@ bool readModel(const unsigned char* p, const unsigned char* end, std::int64_t re
             st.enumIndex   = r.i32();
             st.optionCount = r.i32();
             st.flags       = r.i32();
-            st.key       = r.str(kewl_bridge::model::SET_KEY);
-            st.label     = r.str(kewl_bridge::model::SET_LABEL);
-            st.desc      = r.str(kewl_bridge::model::SET_DESC);
-            st.section   = r.str(kewl_bridge::model::SET_SECTION);
-            st.valueText = r.str(kewl_bridge::model::SET_VALUETEXT);
+            st.key       = r.str(oxc_bridge::model::SET_KEY);
+            st.label     = r.str(oxc_bridge::model::SET_LABEL);
+            st.desc      = r.str(oxc_bridge::model::SET_DESC);
+            st.section   = r.str(oxc_bridge::model::SET_SECTION);
+            st.valueText = r.str(oxc_bridge::model::SET_VALUETEXT);
             // The option count must be in contract or the stream desynchronises: silently clamping a
             // corrupt count (as an earlier draft did) would leave this reader consuming the region
             // from the wrong offset and emitting plausible-looking garbage plugins. The writer
             // (client/bridge.hpp buildModel) rejects any snapshot above MAX_OPTIONS, so >8 here means
             // the region is not ours at all.
-            if (st.optionCount < 0 || st.optionCount > kewl_bridge::MAX_OPTIONS) return false;
+            if (st.optionCount < 0 || st.optionCount > oxc_bridge::MAX_OPTIONS) return false;
             st.options.reserve(st.optionCount);
             for (int o = 0; o < st.optionCount && r.ok; ++o)
-                st.options.push_back(r.str(kewl_bridge::model::SET_OPTION));
+                st.options.push_back(r.str(oxc_bridge::model::SET_OPTION));
             pl.settings.push_back(std::move(st));
         }
         next.push_back(std::move(pl));
@@ -388,30 +388,30 @@ bool readModel(const unsigned char* p, const unsigned char* end, std::int64_t re
 
     int activeProfile = r.i32();
     int profileCount = r.i32();
-    if (profileCount < 0 || profileCount > kewl_bridge::MAX_PROFILES) return false;
-    std::vector<kewl_panel::ProfileModel> profiles;
+    if (profileCount < 0 || profileCount > oxc_bridge::MAX_PROFILES) return false;
+    std::vector<oxc_panel::ProfileModel> profiles;
     profiles.reserve(profileCount);
     for (int i = 0; i < profileCount && r.ok; ++i) {
-        kewl_panel::ProfileModel pf;
-        pf.name = r.str(kewl_bridge::model::PROFILE_NAME);
-        pf.id   = r.str(kewl_bridge::model::PROFILE_ID);
+        oxc_panel::ProfileModel pf;
+        pf.name = r.str(oxc_bridge::model::PROFILE_NAME);
+        pf.id   = r.str(oxc_bridge::model::PROFILE_ID);
         profiles.push_back(std::move(pf));
     }
 
     int hubState = r.i32();
-    std::string hubError = r.str(kewl_bridge::model::HUB_ERROR);   // a fixed char[160] field here,
+    std::string hubError = r.str(oxc_bridge::model::HUB_ERROR);   // a fixed char[160] field here,
                                                                    // not Java's length-prefixed form
     int hubCount = r.i32();
-    if (hubCount < 0 || hubCount > kewl_bridge::MAX_HUB) return false;
-    std::vector<kewl_panel::HubEntry> hub;
+    if (hubCount < 0 || hubCount > oxc_bridge::MAX_HUB) return false;
+    std::vector<oxc_panel::HubEntry> hub;
     hub.reserve(hubCount);
     for (int i = 0; i < hubCount && r.ok; ++i) {
-        kewl_panel::HubEntry he;
-        he.id      = r.str(kewl_bridge::model::HUB_ID);
-        he.name    = r.str(kewl_bridge::model::HUB_NAME);
-        he.version = r.str(kewl_bridge::model::HUB_VERSION);
-        he.author  = r.str(kewl_bridge::model::HUB_AUTHOR);
-        he.desc    = r.str(kewl_bridge::model::HUB_DESC);
+        oxc_panel::HubEntry he;
+        he.id      = r.str(oxc_bridge::model::HUB_ID);
+        he.name    = r.str(oxc_bridge::model::HUB_NAME);
+        he.version = r.str(oxc_bridge::model::HUB_VERSION);
+        he.author  = r.str(oxc_bridge::model::HUB_AUTHOR);
+        he.desc    = r.str(oxc_bridge::model::HUB_DESC);
         he.flags   = r.i32();
         he.installedPluginIdx = r.i32();
         hub.push_back(std::move(he));
@@ -432,7 +432,7 @@ bool readModel(const unsigned char* p, const unsigned char* end, std::int64_t re
     return true;
 }
 
-// Second offline probe: set KEWL_FAKE_PANEL and the launcher skips the launch machinery entirely
+// Second offline probe: set OXC_FAKE_PANEL and the launcher skips the launch machinery entirely
 // and draws the embedded-state panel from a synthetic model region built here, bytes laid out
 // exactly the way client/bridge.hpp::buildModel writes them. This exercises the real parser and
 // the real panel layout with no game, no DLL and no injection -- the strip can be verified in
@@ -461,13 +461,13 @@ void loadFakePanelModel() {
     // the only thing the offline dump can draw, so it should exercise every branch a real jar can
     // send, not just the two kinds the first probe happened to need.
     const FakeSetting pathSettings[] = {
-        { "plan",   "Recalculate every tick", "off",      "",        kewl_bridge::SET_BOOL,    0,   0,  0, 0, 0 },
-        { "style",  "Route style",            "dotted",   "render",  kewl_bridge::SET_ENUM,    1,   0,  0, 0, 3 },
-        { "radius", "Search radius",          "14 tiles", "general", kewl_bridge::SET_INT,    14,   1, 50, kewl_bridge::FLAG_HASUNITS, 0 },
-        { "delay",  "Redraw delay",           "250",      "general", kewl_bridge::SET_INT,   250,   0,  0, 0, 0 },
-        { "hot",    "Toggle path",            "F3",       "general", kewl_bridge::SET_KEYBIND, 3,   0,  0, kewl_bridge::FLAG_KEYBIND, 0 },
-        { "tint",   "Path colour",            "#5adc78",  "render",  kewl_bridge::SET_COLOR, 0x5adc78, 0, 0, 0, 0 },
-        { "note",   "Annotation",             "stairs",   "render",  kewl_bridge::SET_TEXT,    0,   0,  0, 0, 0 },
+        { "plan",   "Recalculate every tick", "off",      "",        oxc_bridge::SET_BOOL,    0,   0,  0, 0, 0 },
+        { "style",  "Route style",            "dotted",   "render",  oxc_bridge::SET_ENUM,    1,   0,  0, 0, 3 },
+        { "radius", "Search radius",          "14 tiles", "general", oxc_bridge::SET_INT,    14,   1, 50, oxc_bridge::FLAG_HASUNITS, 0 },
+        { "delay",  "Redraw delay",           "250",      "general", oxc_bridge::SET_INT,   250,   0,  0, 0, 0 },
+        { "hot",    "Toggle path",            "F3",       "general", oxc_bridge::SET_KEYBIND, 3,   0,  0, oxc_bridge::FLAG_KEYBIND, 0 },
+        { "tint",   "Path colour",            "#5adc78",  "render",  oxc_bridge::SET_COLOR, 0x5adc78, 0, 0, 0, 0 },
+        { "note",   "Annotation",             "stairs",   "render",  oxc_bridge::SET_TEXT,    0,   0,  0, 0, 0 },
     };
     const FakePlugin plugins[] = {
         { "Shortest path", "Draws the route the pathfinder settled on, tile by tile.",
@@ -480,21 +480,21 @@ void loadFakePanelModel() {
     putI32(pluginCount);
     for (const FakePlugin& fp : plugins) {
         putI32(fp.enabled); putI32(1); putI32(fp.hotkey);
-        putField(fp.name,   kewl_bridge::model::PLUGIN_NAME);
-        putField(fp.desc,   kewl_bridge::model::PLUGIN_DESC);
-        putField(fp.status, kewl_bridge::model::PLUGIN_STATUS);
+        putField(fp.name,   oxc_bridge::model::PLUGIN_NAME);
+        putField(fp.desc,   oxc_bridge::model::PLUGIN_DESC);
+        putField(fp.status, oxc_bridge::model::PLUGIN_STATUS);
         putI32((std::int32_t)fp.settings.size());
         for (const FakeSetting& fs : fp.settings) {
             putI32(fs.kind); putI32(fs.valueInt); putI32(fs.min); putI32(fs.max); putI32(fs.valueInt);
             putI32(fs.options); putI32(fs.flags);
-            putField(fs.key,       kewl_bridge::model::SET_KEY);
-            putField(fs.label,     kewl_bridge::model::SET_LABEL);
-            putField("what this setting does", kewl_bridge::model::SET_DESC);
-            putField(fs.section,   kewl_bridge::model::SET_SECTION);
-            putField(fs.valueText, kewl_bridge::model::SET_VALUETEXT);
+            putField(fs.key,       oxc_bridge::model::SET_KEY);
+            putField(fs.label,     oxc_bridge::model::SET_LABEL);
+            putField("what this setting does", oxc_bridge::model::SET_DESC);
+            putField(fs.section,   oxc_bridge::model::SET_SECTION);
+            putField(fs.valueText, oxc_bridge::model::SET_VALUETEXT);
             for (int o = 0; o < fs.options; ++o)
                 putField(o == 0 ? "solid" : o == 1 ? "dotted" : "hidden",
-                         kewl_bridge::model::SET_OPTION);
+                         oxc_bridge::model::SET_OPTION);
         }
     }
     // pinned[pluginCount]: two of the four, so the "pinned first, then alphabetical" ordering and
@@ -507,8 +507,8 @@ void loadFakePanelModel() {
     const char* profileNames[] = { "default", "pvm", "skilling" };
     putI32((std::int32_t)(sizeof profileNames / sizeof profileNames[0]));
     for (const char* pn : profileNames) {
-        putField(pn, kewl_bridge::model::PROFILE_NAME);
-        putField((std::string("profile-") + pn).c_str(), kewl_bridge::model::PROFILE_ID);
+        putField(pn, oxc_bridge::model::PROFILE_NAME);
+        putField((std::string("profile-") + pn).c_str(), oxc_bridge::model::PROFILE_ID);
     }
 
     // Hub: READY with one entry per action state -- not installed, installed with an update
@@ -519,31 +519,31 @@ void loadFakePanelModel() {
           "Prayer flicking with an optional delay.", 0, -1 },
         { "chat-logger", "Chat Logger", "0.9.1", "someone else",
           "Writes every public message to a rolling log under the profile directory.",
-          kewl_bridge::HUB_FLAG_INSTALLED | kewl_bridge::HUB_FLAG_HAS_UPDATE, 1 },
+          oxc_bridge::HUB_FLAG_INSTALLED | oxc_bridge::HUB_FLAG_HAS_UPDATE, 1 },
         { "tile-timer", "Tile Timer", "2.0.0", "a third party",
-          "Times how long you have stood on each tile.", kewl_bridge::HUB_FLAG_BUSY, -1 },
+          "Times how long you have stood on each tile.", oxc_bridge::HUB_FLAG_BUSY, -1 },
         { "loot-tracker", "Loot Tracker", "3.1.2", "yet another",
           "Records drops per monster for this session.",
-          kewl_bridge::HUB_FLAG_INSTALLED, 2 },
+          oxc_bridge::HUB_FLAG_INSTALLED, 2 },
     };
-    putI32(kewl_bridge::HUB_READY);
-    putField("", kewl_bridge::model::HUB_ERROR);
+    putI32(oxc_bridge::HUB_READY);
+    putField("", oxc_bridge::model::HUB_ERROR);
     putI32((std::int32_t)(sizeof hubEntries / sizeof hubEntries[0]));
     for (const FakeHub& fh : hubEntries) {
-        putField(fh.id,      kewl_bridge::model::HUB_ID);
-        putField(fh.name,    kewl_bridge::model::HUB_NAME);
-        putField(fh.version, kewl_bridge::model::HUB_VERSION);
-        putField(fh.author,  kewl_bridge::model::HUB_AUTHOR);
-        putField(fh.desc,    kewl_bridge::model::HUB_DESC);
+        putField(fh.id,      oxc_bridge::model::HUB_ID);
+        putField(fh.name,    oxc_bridge::model::HUB_NAME);
+        putField(fh.version, oxc_bridge::model::HUB_VERSION);
+        putField(fh.author,  oxc_bridge::model::HUB_AUTHOR);
+        putField(fh.desc,    oxc_bridge::model::HUB_DESC);
         putI32(fh.flags);
         putI32(fh.installedIdx);
     }
 
     // Read back from an offset that matches the real region's position in the mapping.
-    std::vector<unsigned char> buf(kewl_bridge::MODEL_OFFSET + region.size(), 0);
-    std::memcpy(buf.data() + kewl_bridge::MODEL_OFFSET, region.data(), region.size());
-    if (readModel(buf.data() + kewl_bridge::MODEL_OFFSET, buf.data() + buf.size(), 1)) {
-        g_bridgeNote = L"bridge: FAKE MODEL (KEWL_FAKE_PANEL); edits go nowhere";
+    std::vector<unsigned char> buf(oxc_bridge::MODEL_OFFSET + region.size(), 0);
+    std::memcpy(buf.data() + oxc_bridge::MODEL_OFFSET, region.data(), region.size());
+    if (readModel(buf.data() + oxc_bridge::MODEL_OFFSET, buf.data() + buf.size(), 1)) {
+        g_bridgeNote = L"bridge: FAKE MODEL (OXC_FAKE_PANEL); edits go nowhere";
     } else {
         g_bridgeNote = L"bridge: FAKE MODEL FAILED TO PARSE -- writer and reader disagree";
     }
@@ -573,25 +573,25 @@ void writeEdit(std::int32_t kind, std::int32_t pluginIdx, const char* key,
     // frame's edit including the final value, and the next publish snapped the slider back with no
     // log line (review 2026-09-06). Refusing at 63 keeps the ring inside the invariant the DLL's
     // guard documents: a full ring is 63 pending records, all of which get drained.
-    if (head - tail >= kewl_bridge::RING_SLOTS - 1) {
+    if (head - tail >= oxc_bridge::RING_SLOTS - 1) {
         if (!g_ringFullLogged) {
             g_ringFullLogged = true;
             std::printf("[bridge] edit ring full (the client has not drained %d edits) -- dropping "
-                        "kind %d until it catches up\n", kewl_bridge::RING_SLOTS - 1, kind);
+                        "kind %d until it catches up\n", oxc_bridge::RING_SLOTS - 1, kind);
             std::fflush(stdout);
         }
         return;
     }
     g_ringFullLogged = false;
 
-    kewl_bridge::EditRecord rec{};
+    oxc_bridge::EditRecord rec{};
     rec.kind = kind;
     rec.pluginIdx = pluginIdx;
     std::snprintf(rec.key, sizeof rec.key, "%s", key ? key : "");
     rec.intVal = intVal;
     if (text) std::snprintf(rec.text, sizeof rec.text, "%s", text);
 
-    g_bridge.hdr->edits[static_cast<std::size_t>(head) % kewl_bridge::RING_SLOTS] = rec;
+    g_bridge.hdr->edits[static_cast<std::size_t>(head) % oxc_bridge::RING_SLOTS] = rec;
     InterlockedExchange(reinterpret_cast<volatile LONG*>(&g_bridge.hdr->head), head + 1);
     InterlockedExchange64(reinterpret_cast<volatile LONG64*>(&g_bridge.hdr->editSeq),
                           g_bridge.hdr->editSeq + 1);
@@ -614,7 +614,7 @@ enum class Phase { Home, WaitWindow, Inject, Embedded };
 Phase g_phase = Phase::Home;
 std::wstring g_status = L"Spawn the game, inject the DLL, embed it here.";
 std::wstring g_gamePath, g_dllPath, g_gameDir;
-std::wstring g_iniPath;                 // kewlklient.ini next to this exe: paths in, sidebar state out
+std::wstring g_iniPath;                 // 0xclient.ini next to this exe: paths in, sidebar state out
 std::unique_ptr<AccountStore> g_accounts;
 std::unique_ptr<JagexAuthWindow> g_authWindow;
 std::string g_accountError;
@@ -651,27 +651,27 @@ void loadPaths() {
     wchar_t exe[MAX_PATH]{};
     GetModuleFileNameW(nullptr, exe, MAX_PATH);
     std::wstring dir = dirOf(exe);
-    g_iniPath = dir + L"\\kewlklient.ini";
+    g_iniPath = dir + L"\\0xclient.ini";
     g_gameDir  = dir;
     wchar_t localAppData[MAX_PATH]{};
     GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
     if (localAppData[0]) {
-        g_accounts = std::make_unique<AccountStore>(std::filesystem::path(localAppData) / L"KewlKlient");
+        g_accounts = std::make_unique<AccountStore>(std::filesystem::path(localAppData) / L"0xClient");
         g_accounts->Load(g_accountError);
     }
     g_gamePath = resolveAgainst(dir, iniString(g_iniPath, L"game", L"osclient.exe"));
-    g_dllPath  = resolveAgainst(dir, iniString(g_iniPath, L"dll", L"kewlklient.dll"));
+    g_dllPath  = resolveAgainst(dir, iniString(g_iniPath, L"dll", L"0xclient.dll"));
     // The sidebar's open/closed state is the one thing this process persists between boots (the
     // spec's "preserve sidebar open/closed state"). It lives in the ini the DLL already reads --
     // same file, its own key -- rather than in a second config file this launcher would own alone.
-    kewl_panel::uiCollapsed() = iniString(g_iniPath, L"sidebar", L"open") == L"collapsed";
-    g_collapsed = kewl_panel::uiCollapsed();
+    oxc_panel::uiCollapsed() = iniString(g_iniPath, L"sidebar", L"open") == L"collapsed";
+    g_collapsed = oxc_panel::uiCollapsed();
     // Reduced motion is the same kind of state and MUST survive a restart for the same reason the
     // OS-level setting does: someone who turns animation off did not turn it off for one session.
     // Default "on" (springs run) because that is what the panel was designed against; the key is
     // only ever written once the user has moved the switch.
-    kewl_panel::uiReducedMotion() = iniString(g_iniPath, L"motion", L"full") == L"reduced";
-    g_reducedMotion = kewl_panel::uiReducedMotion();
+    oxc_panel::uiReducedMotion() = iniString(g_iniPath, L"motion", L"full") == L"reduced";
+    g_reducedMotion = oxc_panel::uiReducedMotion();
 }
 
 // Write the sidebar key when the panel's collapse toggle moved this frame, and re-layout so the
@@ -682,14 +682,14 @@ void persistCollapse() {
     // The reduced-motion switch rides the same poll: it is set in panel_ui.hpp's debug view, which
     // owns no file I/O and no ini path, and it changes nothing about the layout -- so it writes its
     // key and stops, where the collapse toggle also has to re-layout the embedded game.
-    if (kewl_panel::uiReducedMotion() != g_reducedMotion) {
-        g_reducedMotion = kewl_panel::uiReducedMotion();
-        WritePrivateProfileStringW(L"kewl", L"motion", g_reducedMotion ? L"reduced" : L"full",
+    if (oxc_panel::uiReducedMotion() != g_reducedMotion) {
+        g_reducedMotion = oxc_panel::uiReducedMotion();
+        WritePrivateProfileStringW(L"oxclient", L"motion", g_reducedMotion ? L"reduced" : L"full",
                                    g_iniPath.c_str());
     }
-    if (kewl_panel::uiCollapsed() == g_collapsed) return;
-    g_collapsed = kewl_panel::uiCollapsed();
-    WritePrivateProfileStringW(L"kewl", L"sidebar", g_collapsed ? L"collapsed" : L"open",
+    if (oxc_panel::uiCollapsed() == g_collapsed) return;
+    g_collapsed = oxc_panel::uiCollapsed();
+    WritePrivateProfileStringW(L"oxclient", L"sidebar", g_collapsed ? L"collapsed" : L"open",
                                g_iniPath.c_str());
     layoutEmbed();
 }
@@ -809,7 +809,7 @@ void layoutEmbed() {
     RECT cc{};
     GetClientRect(g_main, &cc);
     int cw = cc.right - cc.left, ch = cc.bottom - cc.top;
-    int gameW = cw - kewl_panel::effectivePanelW();
+    int gameW = cw - oxc_panel::effectivePanelW();
     if (gameW < MIN_GAME_W) return;                 // never squeeze the game to nothing
     SetWindowPos(g_game, nullptr, 0, 0, gameW, ch, SWP_NOZORDER | SWP_NOACTIVATE);
     g_setGameW = gameW;
@@ -852,7 +852,7 @@ void selfHeal() {
             g_setGameW = gw;                        // record even when refused, so a game size we
             g_setGameH = gh;                        // won't host is not re-detected every frame
             if (gw >= MIN_GAME_W) {
-                RECT fr{ 0, 0, gw + kewl_panel::effectivePanelW(), gh };
+                RECT fr{ 0, 0, gw + oxc_panel::effectivePanelW(), gh };
                 AdjustWindowRect(&fr, WS_OVERLAPPEDWINDOW, FALSE);
                 SetWindowPos(g_main, nullptr, 0, 0, fr.right - fr.left, fr.bottom - fr.top,
                              SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
@@ -892,7 +892,7 @@ void bridgeTick() {
     if (!g_bridge.hdr) {
         // Never STOP retrying, only slow down. The 30 s budget used to end the attempts as well as
         // the optimistic note, so a JVM that took longer than that to come up (cold disk, an
-        // antivirus scan of kewlklient.jar, first-run JIT -- the mapping appeared at 35 s) left the
+        // antivirus scan of 0xclient.jar, first-run JIT -- the mapping appeared at 35 s) left the
         // strip dead for the whole session while the DLL's own log showed the bridge up
         // (review 2026-09-06). After the budget the note names the real failure, and says we are
         // still trying, which is now true.
@@ -915,7 +915,7 @@ void bridgeTick() {
     if (!g_bridge.lock()) return;                   // DLL mid-publish: next frame
     std::int64_t rev = g_bridge.hdr->modelRevision;
     bool fresh = (rev != g_modelRevision);
-    if (fresh) readModel(g_bridge.base + kewl_bridge::MODEL_OFFSET, g_bridge.base + g_bridge.size, rev);
+    if (fresh) readModel(g_bridge.base + oxc_bridge::MODEL_OFFSET, g_bridge.base + g_bridge.size, rev);
     g_bridge.unlock();
 }
 
@@ -947,12 +947,12 @@ std::map<std::string, std::string> parseUrlValues(const std::string& text, char 
     while (std::getline(stream, item, separator)) { auto eq = item.find('='); if (eq != std::string::npos) result[item.substr(0, eq)] = item.substr(eq + 1); }
     return result;
 }
-void scheduleAuthNavigation(const std::string& url) { auto* value = new std::string(url); PostMessageW(g_main, WM_KEWL_AUTH_NAVIGATE, 0, reinterpret_cast<LPARAM>(value)); }
+void scheduleAuthNavigation(const std::string& url) { auto* value = new std::string(url); PostMessageW(g_main, WM_OXC_AUTH_NAVIGATE, 0, reinterpret_cast<LPARAM>(value)); }
 void beginJagexLogin() {
     if (g_authWindow && g_authWindow->IsOpen()) { g_status = L"Jagex sign-in is already open"; return; }
     wchar_t local[MAX_PATH]{}; GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
     if (!local[0]) { g_status = L"LOCALAPPDATA is unavailable"; return; }
-    const auto temp = std::filesystem::path(local) / L"KewlKlient" / L"AuthTemp" / AccountStore::NewId();
+    const auto temp = std::filesystem::path(local) / L"0xClient" / L"AuthTemp" / AccountStore::NewId();
     auto request = jagex_auth::BeginLauncherOAuth(); if (request.url.empty()) { g_status = L"could not generate secure OAuth state"; return; }
     { std::lock_guard lock(g_auth.mutex); g_auth.stage = AuthStage::LauncherBrowser; g_auth.launcher = request; g_auth.consent = {}; g_auth.firstIdToken.clear(); g_auth.characters.clear(); g_auth.error.clear(); g_auth.importOpen = false; }
     g_authWindow = std::make_unique<JagexAuthWindow>(); std::string error;
@@ -1005,8 +1005,11 @@ void drawHome() {
                              ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollWithMouse;
     ImGui::Begin("##home", nullptr, flags);
 
+    // The wordmark, two-tone like the logo: "0x" in the brand green, "Client" in the text colour.
     ImGui::SetCursorPos(ImVec2(40, 40));
-    ImGui::TextUnformatted("KewlKlient");
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(oxc_panel::theme::BRAND), "0x");
+    ImGui::SameLine(0.0f, 0.0f);
+    ImGui::TextUnformatted("Client");
     ImGui::SetCursorPos(ImVec2(40, 70));
     ImGui::TextDisabled("ImGui launcher -- the game is embedded into this window.");
 
@@ -1054,7 +1057,7 @@ void drawHome() {
     ImGui::BeginChild("paths", ImVec2(420, 120), true);
     ImGui::TextWrapped("game: %s", utf8(g_gamePath).c_str());
     ImGui::TextWrapped("dll:  %s", utf8(g_dllPath).c_str());
-    ImGui::TextDisabled("edit [kewl] game= in kewlklient.ini, next to this exe.");
+    ImGui::TextDisabled("edit [oxclient] game= in 0xclient.ini, next to this exe.");
     ImGui::EndChild();
 
     ImGui::End();
@@ -1075,7 +1078,7 @@ void drawPanel() {
     ImGui::Begin("##root", nullptr, rootFlags);
     ImGui::End();
 
-    kewl_panel::Model m;
+    oxc_panel::Model m;
     m.plugins       = &g_plugins;
     m.profiles      = &g_profiles;
     m.hub           = &g_hub;
@@ -1087,9 +1090,9 @@ void drawPanel() {
     m.bridgeUp      = g_bridge.hdr != nullptr;
     m.note          = utf8(g_bridgeNote);
     m.gameStatus    = utf8(g_status);
-    kewl_panel::draw(m, [](std::int32_t kind, std::int32_t pluginIdx, const char* key,
+    oxc_panel::draw(m, [](std::int32_t kind, std::int32_t pluginIdx, const char* key,
                            std::int64_t intVal, const char* text) {
-        // Plugin enable travels as key "enabled" (kewl.panel.PanelBridge.ENABLE_KEY): the DLL's
+        // Plugin enable travels as key "enabled" (oxclient.panel.PanelBridge.ENABLE_KEY): the DLL's
         // bridgeApply routes it to Plugin.setEnabled rather than Setting.set, because there is no
         // Setting behind the switch. Everything else -- including the format-2 command kinds, which
         // ignore the key -- is routed by the DLL through the owning manager.
@@ -1103,9 +1106,9 @@ void drawPanel() {
     // re-asserting it every frame while one is live, and hand it back through the DLL's own
     // activate message (wParam 1 = "you are active again, re-focus the render view") when the last
     // field closes.
-    if (kewl_panel::uiKeyboardRequested() && gamePumps()) SetFocus(g_main);
+    if (oxc_panel::uiKeyboardRequested() && gamePumps()) SetFocus(g_main);
     static bool wasActive = false;
-    bool active = kewl_panel::uiKeyboardActive();
+    bool active = oxc_panel::uiKeyboardActive();
     if (wasActive && !active) {
         if (GetFocus() == g_main && g_bridge.hdr && g_bridge.hdr->dllMsgHwnd)
             PostMessageW(reinterpret_cast<HWND>(static_cast<uintptr_t>(g_bridge.hdr->dllMsgHwnd)),
@@ -1136,7 +1139,7 @@ bool gamePumps() {
 // The half of the handoff above that must run even when the panel did not just draw -- focus can be
 // stolen between frames by the DLL's WM_ACTIVATE path. Called from frame() every frame.
 void keepKeyboard() {
-    if (!kewl_panel::uiKeyboardActive()) return;
+    if (!oxc_panel::uiKeyboardActive()) return;
     if (GetFocus() == g_main) return;
     // Focus moved off our window while a field is live. Two very different causes. The DLL's
     // WM_ACTIVATE path re-focusing JagRenderView after OUR OWN strip click: fight it -- the user is
@@ -1149,8 +1152,8 @@ void keepKeyboard() {
     if (!fg || GetAncestor(fg, GA_ROOT) != g_main) return;   // whole process backgrounded: not ours to fight
     POINT p{};
     if (GetCursorPos(&p) && ScreenToClient(g_main, &p) &&
-        p.x >= 0 && p.y >= 0 && p.x < g_clientW - kewl_panel::effectivePanelW()) {
-        kewl_panel::kbSurrenderFlag() = true;   // draw() closes the field; no g_msgActivate handback
+        p.x >= 0 && p.y >= 0 && p.x < g_clientW - oxc_panel::effectivePanelW()) {
+        oxc_panel::kbSurrenderFlag() = true;   // draw() closes the field; no g_msgActivate handback
         return;                                 // needed -- the DLL already holds the focus it wants
     }
     if (gamePumps()) SetFocus(g_main);
@@ -1172,7 +1175,7 @@ void keepKeyboard() {
 // Coordinates are launcher-client coordinates, the space io.DisplaySize describes.
 // ---------------------------------------------------------------------------
 
-// One line per PATH change -- never per event, and never a key or a character value (a KEWL_LOG that
+// One line per PATH change -- never per event, and never a key or a character value (a OXC_LOG that
 // traced every WM_CHAR once logged the password field byte for byte, review 2026-09-06).
 enum { LOG_KB = 0, LOG_MOUSE = 1, LOG_SLOTS = 2 };
 void logInputPath(int slot, const char* what) {
@@ -1384,31 +1387,31 @@ void feedKey(WPARAM vk, bool down) {
 bool frame() {
     // The game dying unwinds everything back to the home state -- the bridge closes with it, and
     // the next press of "+ client" starts a fresh game.
-    // KEWL_FAKE_PANEL (see loadFakePanelModel) bypasses the launch machinery entirely: the panel
+    // OXC_FAKE_PANEL (see loadFakePanelModel) bypasses the launch machinery entirely: the panel
     // draws from synthetic data over the whole window and nothing here touches a game process.
-    static bool fakePanel = ::getenv("KEWL_FAKE_PANEL") != nullptr;
+    static bool fakePanel = ::getenv("OXC_FAKE_PANEL") != nullptr;
     if (fakePanel) {
         if (g_plugins.empty()) loadFakePanelModel();
-        // KEWL_FAKE_CONFIG: push the first plugin that has settings, so the config view is dumpable
-        // without a mouse to click a gear with (see kewl_panel::debugPushConfig).
-        static bool fakeConfig = ::getenv("KEWL_FAKE_CONFIG") != nullptr;
+        // OXC_FAKE_CONFIG: push the first plugin that has settings, so the config view is dumpable
+        // without a mouse to click a gear with (see oxc_panel::debugPushConfig).
+        static bool fakeConfig = ::getenv("OXC_FAKE_CONFIG") != nullptr;
         if (fakeConfig) {
             for (int i = 0; i < (int)g_plugins.size(); ++i)
                 // configurable(), not the raw field: that int is the plugin FLAGS word now
                 // (PLUGIN_FLAG_CONFIG | PLUGIN_FLAG_DEV), so testing it for non-zero would also
                 // answer yes for a developer-marked plugin with no settings at all.
                 if (g_plugins[i].configurable() && !g_plugins[i].settings.empty()) {
-                    kewl_panel::debugPushConfig(i);
+                    oxc_panel::debugPushConfig(i);
                     break;
                 }
             fakeConfig = false;
         }
-        // KEWL_FAKE_TAB=plugins|profiles|hub|debug: pick the starting tab, so a view with no offline
+        // OXC_FAKE_TAB=plugins|profiles|hub|debug: pick the starting tab, so a view with no offline
         // click path to it (the rail needs a mouse) still gets dumped. Unknown values are ignored.
-        if (const char* tab = ::getenv("KEWL_FAKE_TAB")) {
-            if (!std::strcmp(tab, "debug"))    kewl_panel::uiTab() = kewl_panel::TAB_DEBUG;
-            if (!std::strcmp(tab, "profiles")) kewl_panel::uiTab() = kewl_panel::TAB_PROFILES;
-            if (!std::strcmp(tab, "hub"))      kewl_panel::uiTab() = kewl_panel::TAB_HUB;
+        if (const char* tab = ::getenv("OXC_FAKE_TAB")) {
+            if (!std::strcmp(tab, "debug"))    oxc_panel::uiTab() = oxc_panel::TAB_DEBUG;
+            if (!std::strcmp(tab, "profiles")) oxc_panel::uiTab() = oxc_panel::TAB_PROFILES;
+            if (!std::strcmp(tab, "hub"))      oxc_panel::uiTab() = oxc_panel::TAB_HUB;
         }
         g_phase = Phase::Embedded;
     } else if (g_phase == Phase::Embedded && (!g_game || !IsWindow(g_game))) {
@@ -1435,7 +1438,7 @@ bool frame() {
         g_profiles.clear();
         g_hub.clear();
         g_activeProfile = -1;
-        g_hubState = kewl_bridge::HUB_IDLE;
+        g_hubState = oxc_bridge::HUB_IDLE;
         g_hubError.clear();
         g_modelRevision = -1;
         g_game = nullptr;
@@ -1460,7 +1463,7 @@ bool frame() {
             }
             HWND w = findGameWindow();
             if (w) {
-                g_status = L"injecting kewlklient.dll...";
+                g_status = L"injecting 0xclient.dll...";
                 setPhase(Phase::Inject, L"");
             } else if (nowSeconds() - g_phaseStart > 30.0) {
                 // 30s, not 10: the game's first window is not on a clock -- a cold wineprefix or a
@@ -1588,8 +1591,8 @@ bool frame() {
     // Clear then raster: ImGui paints windows, not the void behind them, and yesterday's frame must
     // not show through where nothing was drawn this time.
     const size_t pixels = (size_t)g_dib.w * g_dib.h;
-    for (size_t i = 0; i < pixels; ++i) g_dib.px[i] = 0xFF1B1B1Fu;   // opaque dark grey
-    kewl_sw::renderDrawData(ImGui::GetDrawData(), g_dib.px, g_dib.w, g_dib.h);
+    for (size_t i = 0; i < pixels; ++i) g_dib.px[i] = 0xFF0A0C0Au;   // opaque near-black (theme::CANVAS)
+    oxc_sw::renderDrawData(ImGui::GetDrawData(), g_dib.px, g_dib.w, g_dib.h);
 
     // WS_CLIPCHILDREN on our class is what makes this safe in embedded mode: the DC excludes the
     // game child, so repainting the whole client cannot smear the game's frame.
@@ -1602,7 +1605,7 @@ bool frame() {
     // One line a second: did keyboard input reach ImGui, and is a text field active? Diagnoses
     // the "typing into the search box does nothing" class of failure (seen live 2026-09-05).
     static unsigned s_inputLogFrames = 0;
-    if (::getenv("KEWL_LOG") && (s_inputLogFrames++ % 30) == 1) {
+    if (::getenv("OXC_LOG") && (s_inputLogFrames++ % 30) == 1) {
         const ImGuiIO& io = ImGui::GetIO();
         std::printf("[input] WantTextInput=%d chars=%d anyActive=%d focusHere=%d fg=self:%d game:%p mouse=(%.0f,%.0f) cap=%d\n",
                     io.WantTextInput ? 1 : 0, io.InputQueueCharacters.Size,
@@ -1621,7 +1624,7 @@ void startLaunch(const std::wstring& environmentBlock) {
         return;
     }
     if (GetFileAttributesW(g_dllPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
-        g_status = L"kewlklient.dll is not next to this exe (or set [kewl] dll=).";
+        g_status = L"0xclient.dll is not next to this exe (or set [oxclient] dll=).";
         return;
     }
     STARTUPINFOW si{ sizeof si };
@@ -1646,7 +1649,7 @@ void startLaunch(const std::wstring& environmentBlock) {
 
 LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     switch (m) {
-    case WM_KEWL_AUTH_NAVIGATE: {
+    case WM_OXC_AUTH_NAVIGATE: {
         std::unique_ptr<std::string> url(reinterpret_cast<std::string*>(l));
         if (g_authWindow) { std::string error; if (!g_authWindow->Navigate(*url, error)) g_status = wide(error); }
         return 0;
@@ -1705,7 +1708,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             logInputPath(LOG_MOUSE, "mouse: capture lost mid-drag -- release reconciliation covers it");
         }
         return 0;
-    // No per-key trace here, ever: with KEWL_LOG set the launcher once logged every WM_CHAR it got --
+    // No per-key trace here, ever: with OXC_LOG set the launcher once logged every WM_CHAR it got --
     // which is the strip's own text fields, the password one included (review, 2026-09-06). The
     // per-second [input] summary above is all the keyboard diagnosis this file offers.
     case WM_LBUTTONDOWN: {
@@ -1783,12 +1786,12 @@ LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
 // fails to link without it. The one argument we take (--launch) is ASCII, so the narrow entry costs
 // us nothing.
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR cmdLine, int show) {
-    g_msgEmbed    = RegisterWindowMessageW(L"KewlKlientEmbed");
-    g_msgEdit     = RegisterWindowMessageW(L"KewlKlientBridgeEdit");
-    g_msgActivate = RegisterWindowMessageW(L"KewlKlientBridgeActivate");
+    g_msgEmbed    = RegisterWindowMessageW(L"0xClientEmbed");
+    g_msgEdit     = RegisterWindowMessageW(L"0xClientBridgeEdit");
+    g_msgActivate = RegisterWindowMessageW(L"0xClientBridgeActivate");
 
     // Same redirect DllMain does: a GUI-subsystem process has no console, so without this every
-    // printf (ours, and the [input] trace in frame()) vanishes. KEWL_LOG=<win path>.
+    // printf (ours, and the [input] trace in frame()) vanishes. OXC_LOG=<win path>.
     //
     // Opened exactly the way client/log.hpp opens it in the game process, because both processes
     // write this one file. Two things the old DeleteFileA + freopen(log, "a") pair got wrong
@@ -1802,7 +1805,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR cmdLine, int show) {
     //     access denied and the launcher logs NOTHING for the run with no sign of it. CREATE_ALWAYS
     //     truncates in place, which needs no free name.
     // If any step fails, stdout stays as it was -- no log, but nothing worse than that.
-    if (const char* log = ::getenv("KEWL_LOG")) {
+    if (const char* log = ::getenv("OXC_LOG")) {
         HANDLE h = CreateFileA(log, FILE_APPEND_DATA | GENERIC_READ,
                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -1825,7 +1828,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR cmdLine, int show) {
     WNDCLASSW wc{};
     wc.lpfnWndProc   = wndProc;
     wc.hInstance     = inst;
-    wc.lpszClassName = L"KewlKlientLauncher";
+    wc.lpszClassName = L"0xClientLauncher";
+    wc.hIcon         = LoadIconW(inst, MAKEINTRESOURCEW(1));   // the logo, from launcher/0xClient.rc
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);   // the class cursor DefWindowProc applies
     wc.hbrBackground = nullptr;                          // nothing to erase: we own every pixel
     // WS_CLIPCHILDREN is load-bearing once the game is a child: without it a GetDC on this window
@@ -1836,16 +1840,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR cmdLine, int show) {
     DWORD style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
     RECT fr{ 0, 0, 1600, 900 };
     AdjustWindowRect(&fr, style, FALSE);
-    g_main = CreateWindowW(wc.lpszClassName, L"KewlKlient", style,
+    g_main = CreateWindowW(wc.lpszClassName, L"0xClient", style,
                            CW_USEDEFAULT, CW_USEDEFAULT, fr.right - fr.left, fr.bottom - fr.top,
                            nullptr, nullptr, inst, nullptr);
     ShowWindow(g_main, show);
 
-    // `KewlKlient.exe --launch` (or KEWL_AUTOSTART=1 in the environment) presses "+ client" itself,
+    // `0xClient.exe --launch` (or OXC_AUTOSTART=1 in the environment) presses "+ client" itself,
     // so `gradlew run` from a terminal, a desktop shortcut, or a test script can go straight to the
     // game without a mouse. Exactly the button's path -- startLaunch() validates the ini paths and
     // puts any failure in the status line the home screen shows -- nothing is bypassed.
-    if ((cmdLine && std::strstr(cmdLine, "--launch")) || ::getenv("KEWL_AUTOSTART"))
+    if ((cmdLine && std::strstr(cmdLine, "--launch")) || ::getenv("OXC_AUTOSTART"))
         startLaunch();
 
     // Frame-paced message pump: ~30fps like the DLL's loop, but the launcher never sleeps past a

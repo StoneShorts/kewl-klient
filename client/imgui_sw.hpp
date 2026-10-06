@@ -1,4 +1,4 @@
-// imgui_sw.hpp -- header-only Dear ImGui software rasterizer for KewlKlient.
+// imgui_sw.hpp -- header-only Dear ImGui software rasterizer for 0xClient.
 //
 // WHY A SOFTWARE RASTERIZER AT ALL
 //   The game process owns the one OpenGL context NXT is allowed to have, and a second GL context in
@@ -28,7 +28,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace kewl_sw {
+namespace oxc_sw {
 
 // Render one frame of ImGui draw data into `dst` (bw x bh ARGB pixels, top-down).
 // Everything is clipped to the buffer; a panel hanging off the window edge is fine.
@@ -340,7 +340,7 @@ inline void renderDrawData(ImDrawData* dd, unsigned* dst, int bw, int bh) {
         for (int ci = 0; ci < cl->CmdBuffer.Size; ci++) {
             const ImDrawCmd& cmd = cl->CmdBuffer[ci];
             if (cmd.UserCallback) {
-                // ResetRenderState-style callbacks have no meaning to a CPU raster and KewlKlient
+                // ResetRenderState-style callbacks have no meaning to a CPU raster and 0xClient
                 // panels issue none; if one ever appears here it means a plugin is doing something
                 // the launcher-side renderer needs to learn about, not that pixels are missing.
                 continue;
@@ -408,4 +408,4 @@ inline void renderDrawData(ImDrawData* dd, unsigned* dst, int bw, int bh) {
     }
 }
 
-}  // namespace kewl_sw
+}  // namespace oxc_sw

@@ -9,7 +9,7 @@
 // (bare hex RVAs, image-base-relative). With no arguments it decompiles the functions that contain
 // every string-reference site listed below.
 //
-//@category KewlKlient
+//@category OxClient
 import ghidra.app.script.GhidraScript;
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;

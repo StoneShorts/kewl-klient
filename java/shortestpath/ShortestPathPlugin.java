@@ -293,7 +293,7 @@ public class ShortestPathPlugin extends Plugin
 	}
 
 	/**
-	 * Kewl addition, not upstream: the pace {@code kewl.rl.AutoWalk} clicks at, in game ticks. Read
+	 * 0xClient addition, not upstream: the pace {@code oxclient.rl.AutoWalk} clicks at, in game ticks. Read
 	 * live rather than from the cacheConfigValues snapshot so a user dragging the slider while a walk
 	 * is running sees it take effect on the next click. Zero before injection has run; the driver
 	 * floors it.
@@ -738,7 +738,7 @@ public class ShortestPathPlugin extends Plugin
 
 		if (map != null)
 		{
-			// kewl: mouseIsOverUsableMap(), not a bare contains() -- the rectangle is only a canvas
+			// 0xClient: mouseIsOverUsableMap(), not a bare contains() -- the rectangle is only a canvas
 			// rectangle when the chain resolved, and offering "Set target" over a map whose click
 			// cannot be inverted just produces a menu entry that silently sets nothing.
 			if (mouseIsOverUsableMap())
@@ -1305,7 +1305,7 @@ public class ShortestPathPlugin extends Plugin
 
 	private void onMenuOptionClicked(MenuEntry entry)
 	{
-		// kewl: every SET row resolves through setTargetFromSelection/the guarded setStart below, never
+		// 0xClient: every SET row resolves through setTargetFromSelection/the guarded setStart below, never
 		// through setTarget(getSelectedWorldPoint()) directly. UNDEFINED is BOTH "the click could not be
 		// turned into a tile" and "clear the target", and setTargets(empty) is a full teardown -- cancel
 		// the pathfinder, null it, drop the marker, clear startPointSet. Passing a failed resolve
@@ -1393,7 +1393,7 @@ public class ShortestPathPlugin extends Plugin
 	 * Escape hatch for the one failure mode the design below deliberately accepts. Read once, off a
 	 * property, so it cannot be flipped by anything the client does at runtime.
 	 *
-	 * <p>{@code -Dkewl.shortestpath.sceneUnderOpenMap=true} restores the old behaviour: while the map
+	 * <p>{@code -Doxclient.shortestpath.sceneUnderOpenMap=true} restores the old behaviour: while the map
 	 * is on screen and containment is unanswerable, resolve from the scene anyway. It exists because
 	 * the refusal is keyed on {@code Widget.isHidden()} for the world-map group, and if that ever
 	 * misreports a CLOSED map as open, "Set target" on the scene would stop working with no way back
@@ -1401,7 +1401,7 @@ public class ShortestPathPlugin extends Plugin
 	 * flag from being recoverable instead of a rebuild. Default false: the failure it restores is the
 	 * one the user actually reported.</p>
 	 */
-	static final String SCENE_UNDER_OPEN_MAP_PROPERTY = "kewl.shortestpath.sceneUnderOpenMap";
+	static final String SCENE_UNDER_OPEN_MAP_PROPERTY = "oxclient.shortestpath.sceneUnderOpenMap";
 
 	private static final boolean SCENE_UNDER_OPEN_MAP =
 		Boolean.getBoolean(SCENE_UNDER_OPEN_MAP_PROPERTY);
@@ -1449,7 +1449,7 @@ public class ShortestPathPlugin extends Plugin
 	 * refusal.</p>
 	 *
 	 * <p>Where (b) answers NO, the scene tile is the answer, exactly as before. That is safe here for a
-	 * reason specific to this client: kewl's MenuPopup parks the tile the right-click landed on when it
+	 * reason specific to this client: 0xClient's MenuPopup parks the tile the right-click landed on when it
 	 * opens (MenuPopup.open), and WorldView.getSelectedSceneTile() hands that parked tile back for as
 	 * long as the menu is up. So while the user is looking at the popup row they are about to click,
 	 * the "selected scene tile" is exactly where they right-clicked.</p>
@@ -1512,7 +1512,7 @@ public class ShortestPathPlugin extends Plugin
 		SelectionSource source = selectionSourceFor(presenceRefusal == null, containmentRefusal,
 			insideMap, inversionRefusal, sceneTile != null, SCENE_UNDER_OPEN_MAP);
 
-		if (System.getenv("KEWL_LOG") != null)
+		if (System.getenv("OXC_LOG") != null)
 		{
 			// One line, and it says WHICH QUESTION failed: a(on screen) / b(on the map) / c(invertible).
 			// A live report of "set target did nothing" has to be diagnosable from this line alone.
@@ -1802,7 +1802,7 @@ public class ShortestPathPlugin extends Plugin
 	}
 
 	/**
-	 * kewl: the forward map projection refuses at its own boundary, not just at its callers'.
+	 * 0xClient: the forward map projection refuses at its own boundary, not just at its callers'.
 	 *
 	 * <p>Upstream's only guard is {@code map != null}, which is exactly the guard that is not enough
 	 * on this client: the world-map group stays loaded while the map is closed, and a component's
@@ -1895,7 +1895,7 @@ public class ShortestPathPlugin extends Plugin
 	}
 
 	/**
-	 * kewl: the shim's own resolver instead of upstream's three-way guess, and this is what makes the
+	 * 0xClient: the shim's own resolver instead of upstream's three-way guess, and this is what makes the
 	 * minimap drawing FOLLOW THE MINIMAP -- the thing the user actually asked for.
 	 *
 	 * <p>Two differences, both of which the upstream form gets wrong on this client:</p>

@@ -23,8 +23,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 // The scene half, upstream's renderPlayerOverlay minus the friend/clan-rank icons (no sprites, no
-// lists), plus the hull/tile styles NPC Indicators has (a kewl extension -- see the config header;
-// this plugin replaced the box the worked example kewl.plugins.PlayerVisuals drew).
+// lists), plus the hull/tile styles NPC Indicators has (a 0xClient extension -- see the config header;
+// this plugin replaced the box the worked example oxclient.plugins.PlayerVisuals drew).
 //
 // Everything here is positioned off the ACTOR, never off a widget: the hull is the prism at the
 // player's own ground height (Actor.getConvexHull), the tile is the square under its rendered

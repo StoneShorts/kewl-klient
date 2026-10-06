@@ -33,7 +33,7 @@ struct JagexAuthWindow::Impl {
     }
 
     bool createWindow(std::string& error) {
-        static const wchar_t klass[] = L"KewlKlientJagexAuth";
+        static const wchar_t klass[] = L"0xClientJagexAuth";
         static bool registered = false;
         if (!registered) {
             WNDCLASSW wc{}; wc.lpfnWndProc = WindowProc; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = klass; wc.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(IDC_ARROW));

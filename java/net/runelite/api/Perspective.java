@@ -1,7 +1,7 @@
-// Shim of net.runelite.api.Perspective (BSD-2, RuneLite), adapted to KewlKlient.
+// Shim of net.runelite.api.Perspective (BSD-2, RuneLite), adapted to OxClient.
 //
 // The math that is ours (minimap projection) is ported verbatim. The part that is the game's (screen
-// projection) goes through kewl's native projectFine, which calls the game's own worldToScreen -- so
+// projection) goes through 0xClient's native projectFine, which calls the game's own worldToScreen -- so
 // the game's camera maths stays the single source of truth. There is no heightmap yet, so
 // getTileHeight is the ground under the local player (Game.groundHeightGuess) for every tile; actors
 // carry their own exact height and Actor's projection helpers use it.
@@ -78,13 +78,13 @@ public class Perspective
 	}
 
 	/**
-	 * The fine coordinate units of LocalPoint (1/128 tile) are exactly what kewl's projection native
+	 * The fine coordinate units of LocalPoint (1/128 tile) are exactly what 0xClient's projection native
 	 * takes, so this is a direct hand-off.
 	 */
 	@Nullable
 	public static Point localToCanvas(Client client, int x, int y, int z)
 	{
-		java.awt.Point fine = kewl.api.Game.projectFine(x, z, y);
+		java.awt.Point fine = oxclient.api.Game.projectFine(x, z, y);
 		return fine == null ? null : new Point(fine.x, fine.y);
 	}
 
@@ -94,8 +94,8 @@ public class Perspective
 		// best available answer is the ground under the local player, read off its own entity
 		// (ENTITY_FINE_H, live 2026-09-05): exact on your tile, right on flat ground near you, off
 		// by the slope elsewhere -- and ~290 px better than the datum 0 this returned before, which
-		// drew every path tile well below the ground. kewl.api.Game.groundHeightGuess documents it.
-		return kewl.api.Game.groundHeightGuess();
+		// drew every path tile well below the ground. oxclient.api.Game.groundHeightGuess documents it.
+		return oxclient.api.Game.groundHeightGuess();
 	}
 
 	@Nullable
@@ -115,7 +115,7 @@ public class Perspective
 	{
 		int sceneX = localLocation.getSceneX();
 		int sceneY = localLocation.getSceneY();
-		return kewl.api.Game.tileOutline(sceneX, sceneY, kewl.api.Game.groundHeightGuess() - zOffset);
+		return oxclient.api.Game.tileOutline(sceneX, sceneY, oxclient.api.Game.groundHeightGuess() - zOffset);
 	}
 
 	/**
@@ -130,7 +130,7 @@ public class Perspective
 		// the callers, and the NPC itself is always within a tile of the tile it asks about, so this
 		// is exact there -- and no worse than groundHeightGuess anywhere else.
 		return getCanvasTileAreaPoly(client, localLocation, size,
-			kewl.api.Game.heightNear(localLocation.getSceneX(), localLocation.getSceneY()));
+			oxclient.api.Game.heightNear(localLocation.getSceneX(), localLocation.getSceneY()));
 	}
 
 	/**
@@ -160,10 +160,10 @@ public class Perspective
 	private static Polygon areaPoly(int fineX0, int fineY0, int size, int height)
 	{
 		int span = size * LOCAL_TILE_SIZE;
-		java.awt.Point a = kewl.api.Game.projectFine(fineX0, height, fineY0);
-		java.awt.Point b = kewl.api.Game.projectFine(fineX0 + span, height, fineY0);
-		java.awt.Point c = kewl.api.Game.projectFine(fineX0 + span, height, fineY0 + span);
-		java.awt.Point d = kewl.api.Game.projectFine(fineX0, height, fineY0 + span);
+		java.awt.Point a = oxclient.api.Game.projectFine(fineX0, height, fineY0);
+		java.awt.Point b = oxclient.api.Game.projectFine(fineX0 + span, height, fineY0);
+		java.awt.Point c = oxclient.api.Game.projectFine(fineX0 + span, height, fineY0 + span);
+		java.awt.Point d = oxclient.api.Game.projectFine(fineX0, height, fineY0 + span);
 		if (a == null || b == null || c == null || d == null)
 		{
 			return null;
@@ -227,7 +227,7 @@ public class Perspective
 			{
 				for (int dy : new int[] { -half, half })
 				{
-					java.awt.Point p = kewl.api.Game.projectFine(fineX + dx, h, fineY + dy);
+					java.awt.Point p = oxclient.api.Game.projectFine(fineX + dx, h, fineY + dy);
 					if (p != null)
 					{
 						pts.add(p);
@@ -403,7 +403,7 @@ public class Perspective
 		if (!loggedMinimapResolved)
 		{
 			loggedMinimapResolved = true;
-			int[] canvas = kewl.Natives.viewport();   // {x, y, width, height}
+			int[] canvas = oxclient.Natives.viewport();   // {x, y, width, height}
 			String placement = minimapPlacementWarning(loc.getX(), w,
 				canvas != null && canvas.length == 4 ? canvas[2] : 0);
 			System.out.println("[shim] minimap widget resolved at (" + loc.getX() + "," + loc.getY()
@@ -544,7 +544,7 @@ public class Perspective
 	// The two forms are computed together at the call site precisely so they can be compared: their
 	// disagreement IS the vertical-to-horizontal scale ratio, and {@link #pitchFormsNote} turns that
 	// into a sentence. Nothing here assumes a sign convention that cannot be checked -- the height
-	// axis's "negative = up" is the kewl.api.Game contract every projection in this file already
+	// axis's "negative = up" is the oxclient.api.Game contract every projection in this file already
 	// relies on, and a pitch that came out negative would mean the camera is looking ABOVE the
 	// horizon, which OSRS never does.
 
@@ -594,7 +594,7 @@ public class Perspective
 	 * @param upScreenDy screenY(focus RAISED by D) - screenY(focus LOWERED by D). Negative in
 	 *                   practice: raising a point moves it UP the canvas, and canvas Y grows down.
 	 *                   Remember the client's height axis is negative = up, so "raised by D" is
-	 *                   {@code height - D} (see kewl.api.Game.projectFine).
+	 *                   {@code height - D} (see oxclient.api.Game.projectFine).
 	 */
 	public static int pitchFromScreenBasis(int northScreenDx, int northScreenDy,
 		int eastScreenDx, int eastScreenDy, int upScreenDy)

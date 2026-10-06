@@ -1,10 +1,10 @@
 // What a Setting must look like for the control panel to be able to draw it.
 //
-// This replaces a reflective call into kewl.ui.Sidebar, the Swing control panel that the ImGui strip
+// This replaces a reflective call into oxclient.ui.Sidebar, the Swing control panel that the ImGui strip
 // and the Java2D SidePanel replaced and that was deleted on 2026-09-07. Two tests used to build real
 // Swing controls for every declared setting and assert the construction did not throw. The thing
 // they were actually guarding is narrower and is checked here directly: a @ConfigItem whose default
-// falls outside its own @Range crashed the old JSlider constructor, KewlKlient's catch ate the
+// falls outside its own @Range crashed the old JSlider constructor, OxClient's catch ate the
 // exception, and the user got no control panel at all.
 //
 // Checking the invariant beats checking a constructor. The old test could only fail through Swing,
@@ -23,7 +23,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.awt.Color;
 
-import kewl.config.Setting;
+import oxclient.config.Setting;
 
 final class ConfigPanelInvariants
 {
@@ -36,7 +36,7 @@ final class ConfigPanelInvariants
 	 *
 	 * @param what names the config in failure messages, so a failure says which interface broke
 	 */
-	static void assertEverySettingIsRenderable(kewl.config.Config config, String what)
+	static void assertEverySettingIsRenderable(oxclient.config.Config config, String what)
 	{
 		for (Setting s : config.all())
 		{

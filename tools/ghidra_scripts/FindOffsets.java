@@ -1,4 +1,4 @@
-// FindOffsets.java -- re-derive KewlKlient's function RVAs after a game update.
+// FindOffsets.java -- re-derive OxClient's function RVAs after a game update.
 //
 // Run it with tools\ghidra_headless.ps1. It writes tools\offsets_found.txt.
 //
@@ -12,7 +12,7 @@
 // to rearrange; it breaks silently on the next build and hands you an address that decompiles to
 // something plausible and wrong. The string is what the client itself calls the thing, and it survives.
 //
-//@category KewlKlient
+//@category OxClient
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
@@ -91,7 +91,7 @@ public class FindOffsets extends GhidraScript {
         // -- client state: "worldid" is the current-world field's Lua binding name.
         "worldid",
 
-        // -- real tick counter, if the client exposes its own (kewl currently derives it cycle/30).
+        // -- real tick counter, if the client exposes its own (0xClient currently derives it cycle/30).
         "getTickCount",
 
         // -- entity coords beyond the originals: objCoord (items), locCoord (scenery), and the
@@ -105,7 +105,7 @@ public class FindOffsets extends GhidraScript {
     public void run() throws Exception {
         long base = currentProgram.getImageBase().getOffset();
         List<String> out = new ArrayList<>();
-        out.add("# KewlKlient offsets, found by anchoring on the client's own binding names.");
+        out.add("# OxClient offsets, found by anchoring on the client's own binding names.");
         out.add("# image base 0x" + Long.toHexString(base));
         out.add("");
 

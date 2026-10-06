@@ -1,9 +1,19 @@
-# KewlKlient
+<p align="center">
+  <img src="resources/0xclient-logo.png" width="200" alt="0xClient">
+</p>
 
-A small, readable OSRS client with a plugin panel, entity visuals, and a worked example bot.
+<h1 align="center">0xClient</h1>
+
+<p align="center">A small, readable OSRS client with a plugin panel, entity visuals, and a worked example bot.</p>
+
+> **Renamed.** This project used to be called *KewlKlient*. Everything moved with the name: the Java
+> package is `oxclient` (a Java name cannot start with a digit), the binaries are `0xClient.exe`,
+> `0xclient.dll` and `0xclient.jar`, the ini is `0xclient.ini` with a `[0xclient]` section, the
+> environment variables are `OXC_*`, and your settings live under `~/.0xclient`. An old
+> `~/.kewlklient` directory is not migrated -- copy it across if you want your profiles back.
 
 It exists to be **learned from and hacked on**. The core — the API, the plugin model, the config
-system, the drawing — is still the few thousand lines of `java/kewl/` you can hold in your head; the
+system, the drawing — is still the few thousand lines of `java/oxclient/` you can hold in your head; the
 bulk of the repo is the vendored Shortest Path plugin and the RuneLite API shim it runs on, which you
 never have to read. There is no auto-updater and no account manager. The plugin hub is a manifest
 endpoint you point it at, not a store of ours. What there is:
@@ -15,23 +25,23 @@ endpoint you point it at, not a store of ours. What there is:
 - **Settings build their own UI.** Declare a setting; the control panel grows the right widget for it.
   No plugin writes a line of UI code.
 - **Your state survives a restart.** Enabled states, settings, pins and profiles are persisted under
-  `~/.kewlklient` — plugins declare nothing, do nothing, and get it for free.
+  `~/.0xclient` — plugins declare nothing, do nothing, and get it for free.
 - **No network code at all.** We never build a packet. We call the game's own "do this menu action"
   function and let it build and send the packet. That is the single biggest reason this codebase is
   small, and the reason it survives most game updates. (The one exception is the optional plugin
   hub, which fetches a manifest you point it at — see
   [docs/plugin-system.md](docs/plugin-system.md).)
 - **Twenty-five native methods.** That is the entire unsafe surface, all in one file
-  (`java/kewl/Natives.java` — the four input-injection ones, `postChar`/`postKey`/`postMouse`/
+  (`java/oxclient/Natives.java` — the four input-injection ones, `postChar`/`postKey`/`postMouse`/
   `inputTarget`, are part of that count: they are how autologin types your password).
 
 ```
        launcher (ImGui)               injected into the game
     ┌──────────────┐                ┌────────────────────────────────┐
     │  "+ client"  │ ── spawn ───>  │  osclient.exe                  │
-    │              │ ── inject ──>  │  └─ kewlklient.dll             │
+    │              │ ── inject ──>  │  └─ 0xclient.dll             │
     │              │                │     reads memory               │
-    │  286px ImGui │                │     starts a JVM ──────────────┼──> kewlklient.jar
+    │  286px ImGui │                │     starts a JVM ──────────────┼──> 0xclient.jar
     │  panel strip │  <== shared == │     25 natives ────────────────┼──>   api + your plugins
     │  (CPU-raster)│     memory     │  <── one finished image/frame ─┼──    overlays (Java2D)
     └──────────────┘                └────────────────────────────────┘      plugin state (Java)
@@ -67,12 +77,12 @@ You do **not** need Gradle — the wrapper in this repo fetches it.
 ### From IntelliJ
 
 1. **File → Open** and pick the folder you cloned. It imports as a Gradle project.
-2. Pick the **KewlKlient** run configuration (it is checked into the repo) and press **Run**.
+2. Pick the **0xClient** run configuration (it is checked into the repo) and press **Run**.
 3. In the ImGui launcher that appeared, press **+ client**. It starts `osclient.exe`, injects the DLL
    and puts the game inside the launcher's own window.
 4. **Log in.**
 
-That is it — no config file to edit. The build points `kewlklient.ini` at whichever JDK IntelliJ is
+That is it — no config file to edit. The build points `0xclient.ini` at whichever JDK IntelliJ is
 using, and puts everything in `build\dist\`.
 
 ### From a terminal
@@ -84,9 +94,9 @@ gradlew run
 Same thing. `gradlew dist` builds without launching, and `build.bat` is a wrapper around it for people
 who prefer a double-click.
 
-The launcher needs to know where the game is: set `game=` in `build\dist\kewlklient.ini` (relative
-paths resolve against the exe). `build\dist\KewlKlient.exe --launch` presses **+ client** for you, and
-`KEWL_LOG=<file>` in the environment collects the launcher's, the DLL's and Java's diagnostics in one
+The launcher needs to know where the game is: set `game=` in `build\dist\0xclient.ini` (relative
+paths resolve against the exe). `build\dist\0xClient.exe --launch` presses **+ client** for you, and
+`OXC_LOG=<file>` in the environment collects the launcher's, the DLL's and Java's diagnostics in one
 file -- the DLL is built for one exact game build (`client/offsets.hpp`, `BUILD_VERSION`) and refuses
 any other, saying so on screen and in that log.
 
@@ -103,7 +113,7 @@ have hotkeys:
 | F3, F4, F6, F8 | free, for your plugins |
 
 Default-on plugins are **NPC Indicators** (every NPC in range: hull and name; narrow it with the list)
-and **Player Indicators** (names over you and other players); the kewl `NpcVisuals`/`PlayerVisuals`
+and **Player Indicators** (names over you and other players); the 0xClient `NpcVisuals`/`PlayerVisuals`
 examples stay in the list, off. **Anti-idle** taps a camera key every few minutes so the server does
 not log the account out; pair it with Autologin's "Log in again after a disconnect" for a session that
 also survives the disconnects it cannot prevent.
@@ -121,16 +131,16 @@ Extend `Plugin`, override what you need, add one line to the list. This one draw
 nearest cow and counts them:
 
 ```java
-package kewl.plugins;
+package oxclient.plugins;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Point;
 
-import kewl.Plugin;
-import kewl.api.Entity;
-import kewl.api.Npcs;
-import kewl.ui.Hud;
+import oxclient.Plugin;
+import oxclient.api.Entity;
+import oxclient.api.Npcs;
+import oxclient.ui.Hud;
 
 public final class CowSpotter extends Plugin {
 
@@ -153,36 +163,36 @@ public final class CowSpotter extends Plugin {
 }
 ```
 
-Add it in `java/kewl/KewlKlient.java`:
+Add it in `java/oxclient/OxClient.java`:
 
 ```java
 private static final List<Plugin> PLUGINS = new ArrayList<>(List.of(
-        new kewl.plugins.PlayerVisuals(),
-        new kewl.plugins.NpcVisuals(),
-        new kewl.plugins.Woodcutter(),
-        new kewl.plugins.CowSpotter(),         // <- yours
-        new kewl.rl.RlitePlugin("Shortest Path", "Pathfinder over the world map, with auto-walk",
+        new oxclient.plugins.PlayerVisuals(),
+        new oxclient.plugins.NpcVisuals(),
+        new oxclient.plugins.Woodcutter(),
+        new oxclient.plugins.CowSpotter(),         // <- yours
+        new oxclient.rl.RlitePlugin("Shortest Path", "Pathfinder over the world map, with auto-walk",
                 shortestpath.ShortestPathPlugin::new),
-        new kewl.rl.RlitePlugin("NPC Indicators", "Highlight NPCs by name or id: hull box, tile, true tile, name",
+        new oxclient.rl.RlitePlugin("NPC Indicators", "Highlight NPCs by name or id: hull box, tile, true tile, name",
                 net.runelite.client.plugins.npchighlight.NpcIndicatorsPlugin::new),
-        new kewl.rl.RlitePlugin("Player Indicators", "Names over players, coloured by own/others",
+        new oxclient.rl.RlitePlugin("Player Indicators", "Names over players, coloured by own/others",
                 net.runelite.client.plugins.playerindicators.PlayerIndicatorsPlugin::new),
-        new kewl.rl.RlitePlugin("Test Rlite", "Shim smoke test: config, events, overlay",
-                kewl.rl.TestRlite::new),
-        new kewl.rl.RlitePlugin("Test Actors", "Shim smoke test: NPC/player actors, hull, name text, spawn events",
-                kewl.rl.TestActors::new),
-        new kewl.plugins.AutoLogin(),          // types your login (panel settings or autologin.properties) at the title screen
-        new kewl.plugins.AntiIdle()            // a camera-key tap every few minutes so the server does not log you out
+        new oxclient.rl.RlitePlugin("Test Rlite", "Shim smoke test: config, events, overlay",
+                oxclient.rl.TestRlite::new),
+        new oxclient.rl.RlitePlugin("Test Actors", "Shim smoke test: NPC/player actors, hull, name text, spawn events",
+                oxclient.rl.TestActors::new),
+        new oxclient.plugins.AutoLogin(),          // types your login (panel settings or autologin.properties) at the title screen
+        new oxclient.plugins.AntiIdle()            // a camera-key tap every few minutes so the server does not log you out
 ));
 ```
 
 The `RlitePlugin` lines are not hand-written plugins but the shim pattern: an adapter
-(`kewl.rl.RlitePlugin`) hosting a plugin ported off RuneLite's API — Shortest Path, and RuneLite's
+(`oxclient.rl.RlitePlugin`) hosting a plugin ported off RuneLite's API — Shortest Path, and RuneLite's
 own NPC Indicators and Player Indicators ported source-shaped onto the shim's actor API
 (`java/net/runelite/client/plugins/`). They are ordinary registry entries — panel, settings,
 profiles and all — and the reason the real list has ten lines, not five. The two Indicators ports
 are the **default-on** visuals since 2026-09-06, when hull, name and tile were seen sitting at each
-entity's real height in-game (kewl's own `NpcVisuals`/`PlayerVisuals` stay in the list as this
+entity's real height in-game (0xClient's own `NpcVisuals`/`PlayerVisuals` stay in the list as this
 README's worked examples, off unless you switch them on). They say in each setting's description
 what the shim approximates; what RuneLite offers but the client cannot read yet (menu recolouring,
 outlines, respawn timers, friend/clan colours) is omitted from their panels rather than shown dead.
@@ -191,7 +201,7 @@ Rebuild, restart the client. Your plugin is in the panel with a range slider and
 never wrote, and its state is saved with everyone else's. **That list is the entire plugin system** —
 no scanning, no annotations, no manifest, nothing that can silently fail to find your class.
 
-**Read [`Woodcutter.java`](java/kewl/plugins/Woodcutter.java) next.** It is the worked example and does
+**Read [`Woodcutter.java`](java/oxclient/plugins/Woodcutter.java) next.** It is the worked example and does
 all four things at once: settings, a decision loop that drives the game's action API, a world overlay,
 and a statistics panel.
 
@@ -215,7 +225,7 @@ either freezes the overlay. For "every few seconds", keep a `long lastX` field a
 ### What a plugin can see and do
 
 ```java
-// kewl.api.Game -- the world, as of the start of this frame
+// oxclient.api.Game -- the world, as of the start of this frame
 Game.ready()                          Game.me()
 Game.npcs()   Game.players()          Game.entities()
 Game.toScene(worldX, worldY)          // world -> scene, null if not loaded
@@ -224,7 +234,7 @@ Game.toScene(worldX, worldY)          // world -> scene, null if not loaded
 Game.projectWorld(x, y)               // -> Point, or null when off screen
 Game.tileOutlineWorld(x, y)           // -> Polygon lying flat on the ground
 
-// kewl.api.Npcs / Players -- finding things
+// oxclient.api.Npcs / Players -- finding things
 Npcs.nearest(1278)                    Npcs.nearestWithin(10, 2805)
 Npcs.withId(ids...)                   Players.nearest()
 
@@ -238,13 +248,13 @@ Game.me().worldX()   .isIdle()   .health()   .healthPercent()   .runEnergy()
 // stats
 Skills.level(Skill.WOODCUTTING)   Skills.experience(...)   Skills.boost(...)
 
-// kewl.api.Actions -- doing things, in WORLD coordinates
+// oxclient.api.Actions -- doing things, in WORLD coordinates
 Actions.walkTo(x, y)
 Actions.object(treeId, x, y)          // chop / mine / open
 Actions.npc(entity)                   // first option
 Actions.npc(entity, 2)                // second option
 
-// kewl.api.Input -- typing and clicking, by posting messages to the game window
+// oxclient.api.Input -- typing and clicking, by posting messages to the game window
 Input.typeChar(c)                     // one character, as WM_CHAR (never a key-down: see jvm.hpp)
 Input.key(Input.VK_TAB, down)         // Tab / Enter / Backspace as KEYDOWN / KEYUP
 Input.mouseDown(x, y)                 // canvas coordinates; honoured on client-240-6 (the autologin Login click is the proof)
@@ -270,7 +280,7 @@ coordinates; the conversion happens in one place.
 ### Drawing
 
 `render()` hands you a `Graphics2D` over the whole game window, already antialiased, with (0,0) at the
-top-left of the game's client area. Anything Java2D can do works. `kewl.ui.Hud` has the three things
+top-left of the game's client area. Anything Java2D can do works. `oxclient.ui.Hud` has the three things
 every overlay ends up wanting:
 
 ```java
@@ -290,7 +300,7 @@ right perspective and stay correct while the camera turns.
 
 ## Autologin
 
-The **Autologin** plugin (`kewl.plugins.AutoLogin`, last in the registry, off by default) types your
+The **Autologin** plugin (`oxclient.plugins.AutoLogin`, last in the registry, off by default) types your
 account into the title screen. The credentials come from one of two places, checked afresh on every
 attempt:
 
@@ -299,17 +309,17 @@ attempt:
    direct-inject Java2D panel shows them but cannot edit text yet). The password field is a
    password field: masked as you type, masked wherever either panel shows it, and never printed.
    Like every setting, both are saved by the profile store into
-   `~/.kewlklient/profiles/<id>/config.json` — local, outside the repository, but on disk. Both
+   `~/.0xclient/profiles/<id>/config.json` — local, outside the repository, but on disk. Both
    must be filled in for the panel to be used; a half-filled panel falls back to the file.
    **The field holds 63 UTF-8 bytes**, the width of the bridge's `valueText` string (format 2), and
    refuses the next one rather than accepting a value it could not publish back. A longer password
    goes in the file below; widening the string is a bridge format 3 change.
 2. **The file**, for anyone who would rather keep the password out of the profile. In the client's
-   data directory (`KewlKlient.dataDir()` — `~/.kewlklient`, i.e. `C:\Users\<you>\.kewlklient` on
+   data directory (`OxClient.dataDir()` — `~/.0xclient`, i.e. `C:\Users\<you>\.0xclient` on
    Windows):
 
 ```
-~/.kewlklient/autologin.properties
+~/.0xclient/autologin.properties
 
 username=
 password=
@@ -319,12 +329,12 @@ Fill the two values in after the `=`. Everything after the first `=` is the valu
 backslash is a backslash, not an escape — with only surrounding whitespace trimmed. Lines starting
 with `#` are comments.
 
-**Both places are local.** Nothing under `~/.kewlklient` is tracked, and neither the properties
+**Both places are local.** Nothing under `~/.0xclient` is tracked, and neither the properties
 file nor a profile's `config.json` must ever be committed, pasted into an issue, or attached to a
 log. The plugin itself never prints a character of either value, and never a length: every log line
 and the status column say only where the credentials came from and whether each is set
 (`credentials: panel, username set, password set` / `credentials: file, username set, password
-empty`). The `Password` setting is a `config.secret` (see `kewl.config.Config`): the same TEXT
+empty`). The `Password` setting is a `config.secret` (see `oxclient.config.Config`): the same TEXT
 setting underneath, flagged so that both panels mask it and the launcher edits it in a password-mode
 field.
 
@@ -335,7 +345,7 @@ you can read them, nothing else can:
 - a profile's `config.json`, if you used the panel settings (that is the trade the panel makes);
 - the **shared-memory bridge**, while the game is running and only if you used the panel settings.
   The strip is a separate process, so a text setting's value has to cross to it: the model region
-  (`Local\KewlKlientBridge-<gamePid>`) carries the setting's `valueText` in clear so the ImGui field
+  (`Local\0xClientBridge-<gamePid>`) carries the setting's `valueText` in clear so the ImGui field
   can round-trip it, and anything else running in your session can `OpenFileMappingW` that name and
   read it for the life of the game process. A committed edit passes through the edit ring too, but
   only for the frame it takes to apply: the DLL wipes the slot before bumping the tail. (Review
@@ -396,7 +406,7 @@ client draws the welcome box and the form only appears after the Existing User c
 password"* and no welcome box at all. The old script assumed the cold start unconditionally — it
 clicked where Existing User would have been (on that screen it is not a button), typed into whatever
 had focus, submitted an empty password field twice and stopped with `rejected 2 times`. So the script
-now branches on the **screen** (`kewl.plugins.autologin.LoginScreen`), not on the state, and the two
+now branches on the **screen** (`oxclient.plugins.autologin.LoginScreen`), not on the state, and the two
 things it changes are all that differ: whether Existing User is clicked, and whether the password
 field is clicked before typing.
 
@@ -407,7 +417,7 @@ The screen is decided from two sources, in order:
    are read as canvas coordinates with no parent-offset accumulation), but "which groups are loaded"
    is a plain list the client hands over and it changes with the screen. `LoginScreen.KNOWN` maps a
    fingerprint to a screen and **ships empty**: no id has been confirmed against a real screen yet,
-   and a wrong entry would make the cold start skip a click it needs. Run once with `KEWL_LOG` set
+   and a wrong entry would make the cold start skip a click it needs. Run once with `OXC_LOG` set
    and the log carries one `login screen fingerprint [ids] -- ...` line per distinct screen; those
    ids are what belongs in that map.
 2. **How the plugin got there**, used for every unknown fingerprint — i.e. all of them today. Title
@@ -446,7 +456,7 @@ screen's own text says to use the Jagex Launcher — so for one of those every a
 the plugin stops with `rejected 2 times -- check the credentials, and whether this is a Jagex
 Account ...`. Nothing here can work around that.
 
-**Reading the log.** KEWL_LOG carries the whole story under `[autologin]` and `[input]`:
+**Reading the log.** OXC_LOG carries the whole story under `[autologin]` and `[input]`:
 
 | line | means |
 |---|---|
@@ -499,14 +509,14 @@ screen for any reason" wording as a guarantee: the guarantee is the four states 
 
 ### The launcher
 `launcher/main.cpp` — an ImGui window with a "+ client" button. Pressing it spawns `osclient.exe`
-(the path comes from `[kewl] game=` in `kewlklient.ini`), injects `kewlklient.dll` into it with
+(the path comes from `[oxclient] game=` in `0xclient.ini`), injects `0xclient.dll` into it with
 `CreateRemoteThread` + `LoadLibraryW` (the oldest, most boring injection there is), and reparents the
 game's window into the launcher's as a child. From then on one window holds the game on the left and
 a 286px Dear ImGui panel strip on the right, drawn by the launcher process with the CPU
 (`client/imgui_sw.hpp`) — the game owns the only OpenGL context, so the panel never touches a GPU.
 
 The panel's data lives in the game process (Java owns the plugin model, the profiles and the hub), so
-it crosses a shared-memory bridge: Java packs a snapshot (`kewl.panel.PanelBridge`), the DLL repacks
+it crosses a shared-memory bridge: Java packs a snapshot (`oxclient.panel.PanelBridge`), the DLL repacks
 it into the model region (`client/bridge.hpp`), the launcher reads and renders it
 (`launcher/bridge_layout.hpp`). Clicks travel back as small edit records in a ring in the same region,
 and the DLL applies them by calling Java — through `Setting.set` and the owning managers, never
@@ -532,17 +542,17 @@ did (`tools/wine_inject.exe` does the injecting on Linux). Same plugins, same se
   embed, and the ImGui strip itself (plugins, config, profiles, hub, debug, collapse, search).
 
 ### The Java half
-- `java/kewl/Natives.java` — the natives, declared. You will not call these directly.
-- `java/kewl/api/` — the world with names on it: `Game`, `Entity`, `Local`, `Npcs`, `Players`, `Skills`,
+- `java/oxclient/Natives.java` — the natives, declared. You will not call these directly.
+- `java/oxclient/api/` — the world with names on it: `Game`, `Entity`, `Local`, `Npcs`, `Players`, `Skills`,
   `Actions`.
-- `java/kewl/Plugin.java` — the base class, and `java/kewl/plugins/` — the plugins.
-- `java/kewl/config/` — settings that build their own controls.
-- `java/kewl/plugin/` — `PluginManager` (the one place a plugin is switched on or off) and
+- `java/oxclient/Plugin.java` — the base class, and `java/oxclient/plugins/` — the plugins.
+- `java/oxclient/config/` — settings that build their own controls.
+- `java/oxclient/plugin/` — `PluginManager` (the one place a plugin is switched on or off) and
   `plugin/hub/` — the external plugin hub (manifest, download, verify, classload, remove).
-- `java/kewl/profile/` — profiles and persistence: per-profile enabled states and settings, debounced
-  atomic writes under `~/.kewlklient`.
-- `java/kewl/panel/PanelBridge.java` — the packed panel model Java publishes and the edits it accepts.
-- `java/kewl/ui/` — `Theme` (all the colours), `Hud` (drawing helpers), and the Java2D panel views the
+- `java/oxclient/profile/` — profiles and persistence: per-profile enabled states and settings, debounced
+  atomic writes under `~/.0xclient`.
+- `java/oxclient/panel/PanelBridge.java` — the packed panel model Java publishes and the edits it accepts.
+- `java/oxclient/ui/` — `Theme` (all the colours), `Hud` (drawing helpers), and the Java2D panel views the
   direct-inject path draws (`SidePanel`, `PluginListView`, `ConfigView`, `ProfilesView`, `DebugView`).
 
 More on all of this: [`docs/architecture-after.md`](docs/architecture-after.md) is the architecture
@@ -563,7 +573,7 @@ per frame — about 8 MB at 1080p, well under a millisecond, and we were already
 Bot clients usually reimplement the game's network protocol — a big table of opcodes and byte layouts
 that changes every update and fails silently when it drifts.
 
-KewlKlient does not. `doAction` is the client's own menu-action entry point: the same function that runs
+0xClient does not. `doAction` is the client's own menu-action entry point: the same function that runs
 when you right-click a tree and choose "Chop down". We call it with the same arguments and the client
 builds and sends the packet itself. Consequences:
 
@@ -583,7 +593,7 @@ Everything above describes the design and what it buys you once that one number 
 There is a second way to write a plugin: port one. `java/net/runelite/` is a **shim, not RuneLite** —
 our own implementation of the `net.runelite.*` API that RuneLite plugins are written against. A plugin
 ported to `java/shortestpath/` (Shortest Path, from the plugin hub) reads the game through that shim and
-runs as an ordinary kewl plugin on the overlay thread; see `java/net/runelite/README.md` for what is
+runs as an ordinary 0xClient plugin on the overlay thread; see `java/net/runelite/README.md` for what is
 vendored, what is shimming, and what waits on a new offset. (`resources/NOTICE-shortest-path` and
 `resources/LICENSE-shortest-path` are the licence side of the same story, not a technical one.)
 
@@ -596,7 +606,7 @@ is built and unit-tested — pathfinding, tile overlays, config, events, the rig
 password → Login click → state 10 → 20 → 25 → 30 → the *click here to play* click); entity boxes and
 hull prisms sitting on the actual models at each entity's own render height; names over NPCs and
 players (`DEF_NAME` reads on this build — 10 of 11 nearby NPCs named, the eleventh is a nameless
-one); and Shortest Path end to end — shift+right-click → the kewl popup's **Set Target** → a 32-step
+one); and Shortest Path end to end — shift+right-click → the 0xClient popup's **Set Target** → a 32-step
 path → red tiles on the ground, the minimap line and the debug panel. The game's own *Walk here* row
 sits under our Set Target row, so setting a target also walks you there.
 
@@ -608,9 +618,9 @@ What still returns an honest default through `net.runelite.api.ClientState`, eac
 offset it is waiting for:
 
 - **The game menu struct.** `DO_ACTION` is not derived yet, so nothing can read the game's own
-  right-click menu. `kewl/rl/MenuPopup.java` is the deliberate fallback: kewl detects the right-click,
+  right-click menu. `oxclient/rl/MenuPopup.java` is the deliberate fallback: 0xClient detects the right-click,
   fires the same events RuneLite would, and draws the plugin-contributed entries itself.
-- **World-map zoom.** The map's centre is derived and live (`kewl/rl/Events.java`'s `pushWorldMap`:
+- **World-map zoom.** The map's centre is derived and live (`oxclient/rl/Events.java`'s `pushWorldMap`:
   `centreTile = 8*WM_CENTRE = WM_ORIGIN + 48`, pinned in the decompile and cross-checked at the GE),
   but there is deliberately no zoom, because the binary provably has no zoom field to read. The map
   overlays' maths run on a placeholder zoom, so on-map drawing is anchored at the correct centre at a
@@ -620,7 +630,7 @@ offset it is waiting for:
 
 Porting more hub plugins mostly means deriving the remaining offsets once; the shim is shared.
 
-Auto-walk is the one place kewl extends a ported plugin rather than just hosting it: upstream Shortest
+Auto-walk is the one place 0xClient extends a ported plugin rather than just hosting it: upstream Shortest
 Path never moves for you, the `Auto-walk` toggle in its panel does, using the same `doAction` walk as
 every other plugin here.
 
@@ -628,46 +638,122 @@ every other plugin here.
 
 ## When the game updates
 
-Jagex rebuilds the client roughly weekly. Two kinds of number in `offsets.hpp` rot at different speeds:
+Jagex rebuilds the client roughly weekly. Two kinds of number the DLL depends on rot at different
+speeds:
 
-- **Function RVAs** (`DO_ACTION`, `WORLD_TO_SCREEN`) — assume these are wrong after any patch.
-- **Struct offsets** (`ENTITY_SCENE_X`, `SCENE`…) — stabler, but they do move. One of them shifted by
-  `0x10` between builds a few weeks apart.
+- **Function RVAs** (`WORLD_TO_SCREEN`, `GET_VARBIT`) — move on almost every build.
+- **Struct offsets** (`ENTITY_SCENE_X`, `SCENE`…) — stabler, but they do move. Between 241-1 and the
+  241-3 staging build, every field on the client object past the skill arrays moved by `0x10`.
 
-`BUILD_ID` is the fingerprint. If it does not match, **do not just bump it** — every other number was
-measured on that build.
+### You should not have to do anything
 
-### Re-deriving offsets
+Offsets are **data, not code**. The DLL reads the game's version resource at start-up and loads
+`offsets/client-<build>.json` from beside itself; if it has no file for that build it fetches one from
+this repository and caches it. A new game build therefore needs one thing: that file to exist. It is
+produced by the updater and published by a scheduled GitHub Actions workflow
+([`.github/workflows/offsets.yml`](.github/workflows/offsets.yml)) that checks Jagex's CDN every few
+hours, derives the file for any build it has not seen, and opens a pull request with the diff.
 
-```powershell
-.\tools\ghidra_headless.ps1 -Ghidra "C:\ghidra_11.4" -Script FindOffsets.java
-type tools\offsets_found.txt
+Every entry in the file carries a status, so you always know what you are running on:
+
+| status | meaning |
+|---|---|
+| `derived` | read off this build's own code by `DeriveOffsets.java` (evidence: the anchor and the instruction) |
+| `verified` | derived, and confirmed against a running game |
+| `shifted` | not derived; moved by the same delta as the derived fields on both sides of it |
+| `carried` | not derived; last build's value, labelled as such |
+| `suspect` / `refuted` | known to be doubtful or wrong; the feature that needs it refuses rather than guesses |
+
+The DLL's `[build]` log line says which file it loaded and what was missing.
+
+### Running the updater yourself
+
+```bash
+python tools/update/update.py --latest            # the build Jagex is shipping right now
+python tools/update/update.py --build 241-3       # any build the archive holds, including staging
+python tools/update/update.py --exe "C:\...\osclient.exe"
 ```
 
-First run analyses 16 MB and takes 10–20 minutes; it is cached after that.
+It downloads the build (`tools/update/fetch_client.py`, CDN pieces sha256-checked against the signed
+metafile), runs Ghidra headless (free; 10–20 minutes the first time per build, cached after), derives
+every offset it has a rule for, merges with the previous build's file, prints the diff and writes
+`offsets/client-<build>.json`. Commit that file and the DLL in the wild picks it up.
 
-**The method: anchor on a name the client uses for itself, then walk to what you want.** The client ships
-a Lua binding layer that registers its own functions by name, and those names are plain text in the
-binary — `worldToScreenCoord`, `npcCoord`, `playerCoord`. Find the string, find its references, and you
-are inside the registration code for the function you are after. `FindOffsets.java` does the finding;
-you open the referencing function and read off the pointer it registers.
+**The method, which the script only mechanises:** anchor on a name the client uses for itself, then
+walk to what you want. The client ships a Lua binding layer that registers its own functions by name,
+and those names are plain text in the binary — `getVarp`, `npcCoord`, `worldToScreenCoord`. The string
+leads to the registration, the registration stores the leaf it binds, and the leaf's own instructions
+name the field. Every value the script writes quotes the instruction it was read from.
 
 **Do not scan for byte patterns.** A byte pattern is a guess about instructions the compiler may
 rearrange. When it breaks it does not error — it gives you an address that decompiles into something
 plausible and wrong.
 
-Prefer IDA if you own it (better decompiler on this binary): `.\tools\ida_headless.ps1`. It works on a
-copy and deletes the stale database when the exe changes, because IDA will happily answer from last
-month's build without telling you.
-
-There is also a **Claude skill** in `.claude/skills/deob/` that carries this whole method — if you use
-Claude Code, ask it to find an offset and it will follow it.
+When the script cannot derive something (the file says `carried`), the manual tools are still here:
+`tools/ghidra_scripts/DumpAnchors.java` prints the instruction context behind every binding name so a
+changed shape can be read and taught to `DeriveOffsets.java`; `DecompileAnchors.java <rva>` decompiles
+a function; `tools/ida_headless.ps1` does the same with IDA if you own it. The `deob` skill describes
+the whole procedure for an agent.
 
 ### Finding a new action
 
 `Game.OPLOC1 = 3` is "first option on a scenery object". Other actions have other numbers. To find one,
 attach a debugger to `DO_ACTION`, do the action by hand in game, and read the opcode argument. That is
 how every number in this repo was found — none of them were guessed.
+
+---
+
+## The wiki
+
+[`wiki/index.html`](wiki/index.html) is a single self-contained page that documents everything in this
+repository: every Java type with its javadoc, fields and methods; every native; every offset with the
+note that says how it was found; every C++ file; every document; every skill and agent. It is generated
+from the sources, so it cannot drift from them, and it is committed, so it works from a fresh clone
+with no build. Open it in a browser and press `/` to search.
+
+```bash
+python tools/wiki/build_wiki.py          # regenerate wiki/index.html
+python tools/wiki/build_wiki.py --check  # exit 1 if the committed wiki is stale
+```
+
+Documentation lives in the sources — javadoc on Java, header comments on C++, the HOW FOUND note on
+every offset — and the wiki renders it. If something is not in the wiki, it is not documented; fix
+the source, not the wiki.
+
+---
+
+## Agents and skills
+
+The repository carries its own working instructions for coding agents, so the parts of maintenance
+that are procedure rather than judgement can be handed off. They live in `.claude/` and are plain
+Markdown; any agent that reads a file can follow them, and so can a person.
+
+| What | Where | Use it when |
+|---|---|---|
+| **`wiki` skill** | [`.claude/skills/wiki/SKILL.md`](.claude/skills/wiki/SKILL.md) | After any change to Java, C++, offsets, docs, skills or agents. Says what "documented" means here and rebuilds the wiki. |
+| **`update-client` skill** | [`.claude/skills/update-client/SKILL.md`](.claude/skills/update-client/SKILL.md) | Jagex shipped a build. The whole procedure: fetch, derive, merge, verify live, publish — and what to do about anything the script could not derive. |
+| **`deob` skill** | [`.claude/skills/deob/SKILL.md`](.claude/skills/deob/SKILL.md) | One offset broke, or a feature needs memory nothing exposes yet. The manual method: anchor on a name, walk, read, never byte-scan. |
+| **`client-updater` agent** | [`.claude/agents/client-updater.md`](.claude/agents/client-updater.md) | Runs `update-client` end to end for a named or the latest build and reports counts per status, every carried name, and the commit. |
+| **Working rules** | [`CLAUDE.md`](CLAUDE.md) | The three rules of the codebase, the layout, and the conventions (plain commit messages, no copies of the game, nothing from outside the repository). |
+
+**Using them.** In a Claude Code session opened on this folder, type `/update-client` or `/wiki` to
+load a skill, or ask for the `client-updater` agent by name ("run the client-updater for 241-3"). In
+any other tool, paste the skill file into the conversation; it is written to be followed without the
+harness. The scheduled workflow needs no agent at all.
+
+**Updating them.** A skill is the procedure as it is today; when the procedure changes, the skill
+changes in the same commit. Concretely:
+
+- Added an offset to `client/offsets.hpp`? Regenerate `client/offsets_table.inc`
+  (`python tools/update/gen_offset_table.py`), give `DeriveOffsets.java` a rule for it, and add the
+  name to every current `offsets/*.json` (`update.py --no-analyse` re-merges). The `update-client`
+  skill's "adding a brand-new offset" section is that list; keep it true.
+- Changed how the wiki is built, or added a source directory? Update the `wiki` skill's list of what
+  counts as documented.
+- Found a registration shape `DeriveOffsets.java` does not know? Teach the script, then note the
+  shape in the `deob` skill's "two registration shapes" section so the next person reads it there.
+- Every one of these ends with `python tools/wiki/build_wiki.py`, because the skills and agents are
+  wiki pages too.
 
 ---
 
@@ -681,25 +767,25 @@ Genuinely useful, roughly easiest first:
    *(the highest-value one on this list, by a distance)*
 2. **The game menu struct.** `DO_ACTION` is still 0, so nothing can read the game's own menu entries or
    click records — every menu action goes through the drawn-popup fallback in
-   `kewl/rl/MenuPopup.java`, and until this lands nothing can actually act in-game (see
+   `oxclient/rl/MenuPopup.java`, and until this lands nothing can actually act in-game (see
    [the RuneLite plugins section](#runelite-plugins) for what that means for auto-walk). Hook-and-log
    is the method; `client/offsets.hpp` explains it.
 3. **Minimap zoom and camera yaw.** Both sit near the camera/viewport code — `worldToScreenCoord`'s
    camera reads are the anchor. `ClientState.getMinimapZoom()` and `getCameraYawTarget()` hold the
-   placeholders today; landing them is what makes a rotated minimap and a kewl-native minimap
+   placeholders today; landing them is what makes a rotated minimap and a oxc-native minimap
    overlay possible.
 4. **Ground items.** Item containers are readable now; the scene's ground-item stack walk on top of
    that is what makes a looter possible.
 5. ~~**Names.**~~ Done — the `entityName` native walks the client's own `npcName` binding, and NPC and
-   player names come through (`kewl/api/Entity.java`, `net/runelite/api/Player.java`).
+   player names come through (`oxclient/api/Entity.java`, `net/runelite/api/Player.java`).
 6. ~~**Inventory reading.**~~ Done — the `container` native reads any item container in one call
    (wired through `net.runelite.api.ClientState.getItemContainer`).
 7. ~~**Saving settings.**~~ Done — settings, enabled states, pins and profiles persist under
-   `~/.kewlklient` (see `kewl/profile/ProfileManager.java`). Kept on the list so nobody redoes it:
+   `~/.0xclient` (see `oxclient/profile/ProfileManager.java`). Kept on the list so nobody redoes it:
    the open problem there now is *syncing* a profile between machines, which is a file format
    question, not an offsets one.
 8. ~~**A minimap overlay.**~~ Done for the ported plugin — Shortest Path ships a minimap overlay.
-   What is still open for kewl's own plugins is item 3: without the minimap zoom offset nothing of
+   What is still open for 0xClient's own plugins is item 3: without the minimap zoom offset nothing of
    ours can draw on it correctly.
 
 Please keep the three rules this codebase is built on: **no packet building**, **every offset gets a
@@ -714,7 +800,7 @@ Is the game actually running and logged in? The launcher looks for `osclient.exe
 game refused the DLL, you built 32-bit — the game is x64 and rejects a 32-bit DLL silently.
 
 **The overlay says "java: could not load jvm.dll".**
-`java=` in `kewlklient.ini` is wrong. It needs a folder with `bin\server\jvm.dll` under it. A JDK always
+`java=` in `0xclient.ini` is wrong. It needs a folder with `bin\server\jvm.dll` under it. A JDK always
 has that; some JREs do not.
 
 **The build says "CMake is not installed (or not on your PATH)".**
@@ -724,8 +810,8 @@ it was started with, so a new install is invisible to it until then.
 **The build says "No CMAKE_CXX_COMPILER could be found".**
 No C++ compiler. Install the Build Tools from the table above.
 
-**The overlay says "kewl/KewlKlient not found".**
-`kewlklient.jar` must sit next to `kewlklient.dll`. `gradlew dist` puts all four files in `build\dist\`
+**The overlay says "oxclient/OxClient not found".**
+`0xclient.jar` must sit next to `0xclient.dll`. `gradlew dist` puts all four files in `build\dist\`
 and now checks they are actually there before claiming success — it used to be possible for the build
 to pass while producing no DLL at all.
 
@@ -738,10 +824,10 @@ Expected — it is a layered window, not a renderer hook. See "The native half".
 **The panel strip says "bridge: opening…" forever, or shows nothing.**
 The DLL could not create the shared-memory mapping, or the jar beside the DLL predates the bridge.
 The game's stdout prints `[bridge]` lines saying which; the debug tab in the strip shows the same
-state. A jar without `kewl.panel.PanelBridge` gets an empty panel rather than a hung one.
+state. A jar without `oxclient.panel.PanelBridge` gets an empty panel rather than a hung one.
 
 **My settings did not come back after a restart.**
-They live in `~/.kewlklient/profiles/` — a profile is a complete statement, so only what differs from
+They live in `~/.0xclient/profiles/` — a profile is a complete statement, so only what differs from
 a plugin's declared defaults is written, and a plugin that was never switched on under the active
 profile starts off. A corrupt file is quarantined as `.bad` and fallen back from; look for
 `[profile]` lines in the game's stdout.
@@ -759,7 +845,12 @@ profile starts off. A corrupt file is quarantined as `.bad` and fallen back from
 
 If you fork it, a link back here is appreciated on top of what the licence requires.
 
-Copyright (C) 2026 StoneShorts and the KewlKlient contributors.
+Copyright (C) 2026 StoneShorts and the 0xClient contributors.
+
+## Support
+
+0xClient is free and will stay free. If it saved you an evening, you can buy the author a coffee:
+**[buymeacoffee.com/0xbiggs](https://buymeacoffee.com/0xbiggs)**.
 
 ---
 

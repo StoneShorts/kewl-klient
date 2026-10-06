@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace kewl_bridge {
+namespace oxc_bridge {
 
 constexpr std::uint32_t MAGIC   = 0x4B424252u;   // 'KKBR'
 constexpr std::uint32_t VERSION = 2;
@@ -79,9 +79,9 @@ enum SettingKind : std::int32_t {
 
 // Plugin flags: the int32 that follows `enabled` in every plugin record. bit0 is the field's
 // original "hasConfig 0/1" meaning, unchanged, which is why the developer bit needed no format bump
-// -- same field, same offset, spare bits. bit1 is kewl.Plugin.developer(): smoke tests and worked
+// -- same field, same offset, spare bits. bit1 is oxclient.Plugin.developer(): smoke tests and worked
 // examples, which the plugin list sorts last under a "Developer" heading. Same constants in
-// client/bridge.hpp (PLUGIN_FLAG_*) and kewl.panel.PanelBridge (PLUGIN_FLAG_CONFIG / _DEV).
+// client/bridge.hpp (PLUGIN_FLAG_*) and oxclient.panel.PanelBridge (PLUGIN_FLAG_CONFIG / _DEV).
 constexpr std::int32_t PLUGIN_FLAG_CONFIG = 1 << 0;
 constexpr std::int32_t PLUGIN_FLAG_DEV    = 1 << 1;
 
@@ -190,4 +190,4 @@ constexpr std::size_t HUB_RECORD_BYTES     = HUB_ID + HUB_NAME + HUB_VERSION + H
 static_assert(model::PROFILE_RECORD_BYTES == 128, "bridge contract (client/bridge.hpp): a profile record is 128 bytes");
 static_assert(model::HUB_RECORD_BYTES     == 424, "bridge contract (client/bridge.hpp): a hub record is 424 bytes");
 
-}  // namespace kewl_bridge
+}  // namespace oxc_bridge

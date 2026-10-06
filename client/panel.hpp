@@ -1,6 +1,6 @@
 // panel.hpp -- the control panel's own window: the part of the client that can be clicked.
 //
-// The panel is a top-level WS_POPUP window OWNED by the KewlKlient host window (dllmain.cpp docks it
+// The panel is a top-level WS_POPUP window OWNED by the 0xClient host window (dllmain.cpp docks it
 // into the strip right of the game), so it tracks the client instead of floating over the desktop
 // -- an owned window hides with its owner and the run() loop hides it when the host is minimized.
 // It is deliberately NOT a layered window: it has no per-pixel alpha -- it is an opaque sidebar,
@@ -12,12 +12,12 @@
 // pointer on some boots). A top-level window gets an X window and a reliable class cursor.
 //
 // Mouse events go back the other way as upcalls: the panel window's WndProc (dllmain.cpp) calls
-// kk::panelMouse, which calls kewl.KewlKlient.panelMouse. Java draws the panel opaque where it is
+// oxc::panelMouse, which calls oxclient.OxClient.panelMouse. Java draws the panel opaque where it is
 // interactive and dark everywhere else, so what you see is what you can click.
 #pragma once
 #include "overlay.hpp"
 
-namespace kk::panel {
+namespace oxc::panel {
 
 // Reuse the Layered struct for its DIB back buffer only -- nothing here calls UpdateLayeredWindow.
 inline Layered g_panel;
@@ -49,4 +49,4 @@ inline void present(HWND game, const void* src, int w, int h) {
     blit_last();
 }
 
-}  // namespace kk::panel
+}  // namespace oxc::panel

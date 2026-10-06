@@ -55,6 +55,6 @@ public class Tile
 	public String toString()
 	{
 		return "scene(" + sceneX + "," + sceneY + ",plane " + plane + ") world("
-			+ (kewl.api.Game.sceneBaseX() + sceneX) + "," + (kewl.api.Game.sceneBaseY() + sceneY) + ")";
+			+ (oxclient.api.Game.sceneBaseX() + sceneX) + "," + (oxclient.api.Game.sceneBaseY() + sceneY) + ")";
 	}
 }

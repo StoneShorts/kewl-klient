@@ -1,5 +1,5 @@
 // Shim of net.runelite.client.plugins.Plugin (BSD-2, RuneLite), cut down to what a plugin needs to
-// override here. Lifecycle is driven by kewl.rl.RlitePlugin, which calls startUp/shutDown on
+// override here. Lifecycle is driven by oxclient.rl.RlitePlugin, which calls startUp/shutDown on
 // enable/disable and fires events from the frame thread.
 package net.runelite.client.plugins;
 
@@ -21,7 +21,7 @@ public abstract class Plugin
 	}
 
 	// Match upstream: protected, non-abstract, empty. A plugin overrides what it needs; RlitePlugin
-	// invokes these reflectively because protected members are not callable from kewl.rl.
+	// invokes these reflectively because protected members are not callable from oxclient.rl.
 	protected void startUp() throws Exception
 	{
 	}

@@ -1,0 +1,519 @@
+{
+  "build": "240-6",
+  "sha256": "d6a43c08fc8d2c7934b081545a6b26023830c55ccd11cd86549056dd343471e1",
+  "derived": "2026-10-06T03:50:57Z",
+  "source": "DeriveOffsets.java",
+  "notes": "",
+  "offsets": {
+    "BUILD_ID": {
+      "value": 1007936,
+      "status": "derived",
+      "evidence": "entry of the ClientState registration, the function that references \"getVarp\""
+    },
+    "CLIENT_OBJ_PTR": {
+      "value": 15292008,
+      "status": "verified",
+      "evidence": "getStatEffectiveLevel leaf loads the client object: 0f8a25  MOV RCX,qword ptr [0x140e95668] | confirmed against a running game on this build (client/offsets.hpp)"
+    },
+    "DO_ACTION": {
+      "value": 0,
+      "status": "suspect",
+      "evidence": "compiled default (client/offsets.hpp): --------------------------------------------------------------------------------------------------- FUNCTIONS WE CALL (RVAs from the module base) --------------------------------------------------------------------------------------------------- The client's own \"do a menu action\" entry point. We call it instead of building network packets by hand: it takes the same arguments the real menu does, a"
+    },
+    "WORLD_TO_SCREEN": {
+      "value": 2228896,
+      "status": "derived",
+      "evidence": "Graphics.worldToScreenCoord leaf (stored at wrapper+0x10 by its T1)"
+    },
+    "CAMERA_FINE_X": {
+      "value": 562648,
+      "status": "verified",
+      "evidence": "three consecutive ints the projection reads off the client: 2202c8  MOV ESI,dword ptr [R15 + 0x895d8] | confirmed against a running game on this build (client/offsets.hpp)"
+    },
+    "CAMERA_FINE_H": {
+      "value": 562652,
+      "status": "derived",
+      "evidence": "2202d6  MOV EDI,dword ptr [R15 + 0x895dc]"
+    },
+    "CAMERA_FINE_Y": {
+      "value": 562656,
+      "status": "derived",
+      "evidence": "2202dd  MOV EBX,dword ptr [R15 + 0x895e0]"
+    },
+    "VIEW_OBJ": {
+      "value": 144,
+      "status": "derived",
+      "evidence": "the projection's view object, first qword it takes off the client: 2202c1  MOV RCX,qword ptr [R15 + 0x90]"
+    },
+    "VIEW_OBJ_SCALE_BASE": {
+      "value": 16,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): the scales hang off view+0x10, so a"
+    },
+    "VIEW_IN_W": {
+      "value": 32,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): x rescale denominator (a WIDTH: 1606 live)"
+    },
+    "VIEW_IN_H": {
+      "value": 36,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): y rescale denominator (a HEIGHT: 900 live)"
+    },
+    "VIEW_OUT_W": {
+      "value": 92,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): x rescale numerator   (a WIDTH: 1606 live)"
+    },
+    "VIEW_OUT_H": {
+      "value": 96,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): y rescale numerator   (a HEIGHT: 900 live)"
+    },
+    "SCENE": {
+      "value": 51856,
+      "status": "verified",
+      "evidence": "getMapCoordinate leaf: 21c67a  MOV R8,qword ptr [RAX + 0xca90] | confirmed against a running game on this build (client/offsets.hpp)"
+    },
+    "LOCAL_PLAYER_IDX": {
+      "value": 52316,
+      "status": "derived",
+      "evidence": "playerFindSelf leaf: 3a9188  MOV EDI,dword ptr [RDI + 0xcc5c]"
+    },
+    "PLAYER_COUNT": {
+      "value": 52448,
+      "status": "verified",
+      "evidence": "compiled default (client/offsets.hpp): The player handle table: PLAYER_COUNT is how many entries PLAYER_IDS holds, and the ids sit inline right after the count (hence array = count + 4). 0xFFFFFFFF = an empty slot.  HOW FOUND (client-240-6): the client resolves these handles through its own player table, over and over. FUN_140063a06 is the shape in full: `movsxd r12,[client+0xCCE0]; jle skip; lea r15,[client+0xCCE4]`, then per entry `m"
+    },
+    "PLAYER_IDS": {
+      "value": 52452,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "SKILL_EFFECTIVE": {
+      "value": 13152,
+      "status": "derived",
+      "evidence": "getStatEffectiveLevel leaf reads the array: 0f8a38  MOV EAX,dword ptr [RCX + RAX*0x4 + 0x3360]"
+    },
+    "SKILL_BASE": {
+      "value": 13252,
+      "status": "derived",
+      "evidence": "getStatBaseLevel leaf reads the array: 0f8a98  MOV EAX,dword ptr [RCX + RAX*0x4 + 0x33c4]"
+    },
+    "SKILL_XP": {
+      "value": 13352,
+      "status": "derived",
+      "evidence": "getStatXP leaf reads the array: 0f8a68  MOV EAX,dword ptr [RCX + RAX*0x4 + 0x3428]"
+    },
+    "RUN_ENERGY": {
+      "value": 13520,
+      "status": "suspect",
+      "evidence": "compiled default (client/offsets.hpp): SUSPECT: 0..10000 on the build it came from"
+    },
+    "CYCLE": {
+      "value": 8548,
+      "status": "derived",
+      "evidence": "GAME_STATE+4, confirmed by the per-frame increment 05af06  INC dword ptr [RDI + 0x2164]"
+    },
+    "GAME_STATE": {
+      "value": 8544,
+      "status": "verified",
+      "evidence": "isLoggedIn leaf compares it to 30: 0f8b51  CMP dword ptr [RAX + 0x2160],0x1e | confirmed against a running game on this build (client/offsets.hpp)"
+    },
+    "PENDING_ACTION_PACKED_ID": {
+      "value": 144,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): The pending menu-action record -- what the game fills when you click a menu entry, and what its packet sender reads back. Three ints on the client object plus a small state tail: +0x90 packed widget id (groupId<<16 | componentId -- the same split FUN_1405B64D0 does) +0x94 component index / selector (-1 = \"the tile itself, no sub-object\") +0x98 target id (npc/player/loc index, as read back by the p"
+    },
+    "PENDING_ACTION_INDEX": {
+      "value": 148,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "PENDING_ACTION_TARGET": {
+      "value": 152,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "PENDING_ACTION_SEQ": {
+      "value": 156,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): u16"
+    },
+    "PENDING_ACTION_PENDING": {
+      "value": 159,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): u8, 1 = action queued"
+    },
+    "WORLD_MAP": {
+      "value": 18872,
+      "status": "derived",
+      "evidence": "getMapOrigin leaf: 3a409b  MOV RCX,qword ptr [RAX + 0x49b8]"
+    },
+    "WM_ORIGIN_LEVEL": {
+      "value": 21688,
+      "status": "derived",
+      "evidence": "getMapOrigin leaf reads the MapCoord: 3a40a2  MOVSD XMM0,qword ptr [RCX + 0x54b8]"
+    },
+    "WM_ORIGIN_X": {
+      "value": 21692,
+      "status": "derived",
+      "evidence": "MapCoord {level, x, z}: origin + 4"
+    },
+    "WM_ORIGIN_Z": {
+      "value": 21696,
+      "status": "derived",
+      "evidence": "MapCoord {level, x, z}: origin + 8"
+    },
+    "WM_CENTRE_X": {
+      "value": 21700,
+      "status": "derived",
+      "evidence": "the centre pair sits right after the MapCoord (origin + 0xC), same layout as 240-6"
+    },
+    "WM_CENTRE_Z": {
+      "value": 21704,
+      "status": "derived",
+      "evidence": "origin + 0x10"
+    },
+    "VARP_ARRAY_PTR": {
+      "value": 22398216,
+      "status": "derived",
+      "evidence": "getVarp leaf: 0f8b10  MOV RAX,qword ptr [0x14155c508]"
+    },
+    "GET_VARBIT": {
+      "value": 5984752,
+      "status": "derived",
+      "evidence": "getVarbit leaf is a thunk; its jump target: 5b52a5  RET"
+    },
+    "CONTAINER_BUCKETS": {
+      "value": 22332672,
+      "status": "derived",
+      "evidence": "then the bucket array pointer: 032627  MOV RDX,qword ptr [0x14154c500]"
+    },
+    "CONTAINER_MASK": {
+      "value": 22332680,
+      "status": "derived",
+      "evidence": "container lookup reads the bucket count first: 032610  MOV R10,qword ptr [0x14154c508]"
+    },
+    "CONTAINER_NODE_IDS": {
+      "value": 8,
+      "status": "derived",
+      "evidence": "invGetObjId: the array's first-entry pointer on the node: 032655  MOV RDX,qword ptr [RAX + 0x8]"
+    },
+    "CONTAINER_NODE_IDS_END": {
+      "value": 16,
+      "status": "derived",
+      "evidence": "invGetObjId: one-past-last pointer on the node: 032659  MOV RCX,qword ptr [RAX + 0x10]"
+    },
+    "CONTAINER_NODE_QTYS": {
+      "value": 32,
+      "status": "derived",
+      "evidence": "invGetNum: the array's first-entry pointer on the node: 0326b2  MOV RDX,qword ptr [RAX + 0x20]"
+    },
+    "CONTAINER_NODE_QTYS_END": {
+      "value": 40,
+      "status": "derived",
+      "evidence": "invGetNum: one-past-last pointer on the node: 0326b6  MOV RCX,qword ptr [RAX + 0x28]"
+    },
+    "CONTAINER_NODE_NEXT": {
+      "value": 56,
+      "status": "derived",
+      "evidence": "the chain walk advances through this field: 03263b  MOV RAX,qword ptr [RAX + 0x38]"
+    },
+    "REGISTRY_MAP": {
+      "value": 51656,
+      "status": "verified",
+      "evidence": "npcCoord leaf hands the registry map (client+disp) to the lookup: 3af3a3  LEA R8,[RBP + 0xc9c8] | confirmed against a running game on this build (client/offsets.hpp)"
+    },
+    "REGISTRY_GROUPS": {
+      "value": 51688,
+      "status": "derived",
+      "evidence": "getNpcIdAll leaf walks the group heads: 3ae3a6  MOV RDX,qword ptr [RAX + 0xc9e8]"
+    },
+    "REGISTRY_GROUP_COUNT": {
+      "value": 51696,
+      "status": "derived",
+      "evidence": "getNpcIdAll leaf bounds the walk: 3ae3dd  MOV RAX,qword ptr [RAX + 0xc9f0]"
+    },
+    "REGISTRY_GROUP_SEL": {
+      "value": 52320,
+      "status": "verified",
+      "evidence": "compiled default (client/offsets.hpp): The group key naming the CURRENT group. DERIVED STATICALLY, not confirmed live -- our walk enumerates every group, so nothing in the shim reads it.  HOW FOUND (client-240-6): FUN_140078200 -- called from the frame function as (client, *(client+SCENE)) at 0x140073c51 -- is the group resolver: `movsxd r9,[rcx+0xCC60]` (this key), `div r8d` with the bucket count from [rdx+0xF0], walk the bucket heads"
+    },
+    "GROUP_TABLE": {
+      "value": 16,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on a group node: the table pair"
+    },
+    "GROUP_NEXT": {
+      "value": 24,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on a group node"
+    },
+    "PLAYER_BUCKETS": {
+      "value": 104,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on the table pair"
+    },
+    "PLAYER_BUCKET_COUNT": {
+      "value": 112,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on the table pair (u64)"
+    },
+    "NPC_BUCKETS": {
+      "value": 152,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on the table pair"
+    },
+    "NPC_BUCKET_COUNT": {
+      "value": 160,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on the table pair (u64)"
+    },
+    "NODE_UID": {
+      "value": 0,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on an entity node (u32)"
+    },
+    "NODE_ENTITY": {
+      "value": 16,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on an entity node"
+    },
+    "NODE_NEXT": {
+      "value": 24,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): field on an entity node"
+    },
+    "SCENE_NPC_UIDS": {
+      "value": 208,
+      "status": "derived",
+      "evidence": "getNpcIdAll leaf reads the uid array: 3ae430  MOV RAX,qword ptr [RBP + 0xd0]"
+    },
+    "SCENE_NPC_UID_COUNT": {
+      "value": 216,
+      "status": "derived",
+      "evidence": "and its count: 3ae473  CMP ESI,dword ptr [RBP + 0xd8]"
+    },
+    "SCENE_BASE_X": {
+      "value": 36,
+      "status": "verified",
+      "evidence": "compiled default (client/offsets.hpp): --------------------------------------------------------------------------------------------------- FIELDS ON THE SCENE OBJECT  ( *(clientObj + SCENE) ) --------------------------------------------------------------------------------------------------- The scene's south-west corner in WORLD tiles. Entities carry SCENE coordinates (0..103), so: worldX = SCENE_BASE_X + entity.sceneX  HOW FOUND (clie"
+    },
+    "SCENE_BASE_Y": {
+      "value": 40,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "ENTITY_SCENE_X": {
+      "value": 1008,
+      "status": "derived",
+      "evidence": "npcCoord leaf reads it into the result's x slot: 3af43d  MOV EAX,dword ptr [RSI + 0x3f0]"
+    },
+    "ENTITY_SCENE_Y": {
+      "value": 1048,
+      "status": "derived",
+      "evidence": "npcCoord leaf reads it into the result's y slot: 3af446  MOV EAX,dword ptr [RSI + 0x418]"
+    },
+    "ENTITY_FINE_H": {
+      "value": 504,
+      "status": "derived",
+      "evidence": "dword both coordinate leaves read below the scene coords: the render height (fine x/y follow at +4/+8)"
+    },
+    "ENTITY_FINE_X": {
+      "value": 508,
+      "status": "derived",
+      "evidence": "render position triple {height, x, y}: +4"
+    },
+    "ENTITY_FINE_Y": {
+      "value": 512,
+      "status": "derived",
+      "evidence": "render position triple {height, x, y}: +8"
+    },
+    "ENTITY_PLANE": {
+      "value": 1056,
+      "status": "suspect",
+      "evidence": "compiled default (client/offsets.hpp): SUSPECT: this build points at 0x7CC instead"
+    },
+    "ENTITY_PLANE_COORD": {
+      "value": 1996,
+      "status": "derived",
+      "evidence": "the one dword the coord leaf reads off the entity that npcCoord does not (its level)"
+    },
+    "ENTITY_DEF_PTR": {
+      "value": 1840,
+      "status": "derived",
+      "evidence": "npcName's resolver loads the definition: 0a2c5e  MOV RDX,qword ptr [RSI + 0x730]"
+    },
+    "ENTITY_NAME_OVERRIDE": {
+      "value": 1808,
+      "status": "verified",
+      "evidence": "npcName's resolver checks the inline override: 0a2b6b  LEA RDX,[RSI + 0x710] | confirmed against a running game on this build (client/offsets.hpp)"
+    },
+    "PLAYER_NAME_PTR": {
+      "value": 1816,
+      "status": "derived",
+      "evidence": "playerName leaf: 1ee8c7  MOV RCX,qword ptr [RCX + 0x718]"
+    },
+    "DEF_NAME": {
+      "value": 8,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): NxtString on the NPC definition"
+    },
+    "IFACE_MANAGER": {
+      "value": 4275176,
+      "status": "verified",
+      "evidence": "compiled default (client/offsets.hpp): on the client object"
+    },
+    "IFACE_GROUP_COUNT": {
+      "value": 26112,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): u64, on the interface manager"
+    },
+    "IFACE_GROUP_ARRAY": {
+      "value": 26120,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): -> 24-byte group entries"
+    },
+    "IFACE_GROUP_ENTRY_STRIDE": {
+      "value": 24,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): bytes per group entry"
+    },
+    "IFACE_GROUP_ENTRY_COUNT": {
+      "value": 8,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): in the entry: u64 componentCount"
+    },
+    "IFACE_GROUP_ENTRY_DATA": {
+      "value": 16,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): in the entry: -> componentData"
+    },
+    "IFACE_EMPTY_SENTINEL": {
+      "value": 22398448,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): global; compare entry+8's"
+    },
+    "IFTYPE_X": {
+      "value": 92,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): int, relative to the parent"
+    },
+    "IFTYPE_Y": {
+      "value": 96,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "IFTYPE_WIDTH": {
+      "value": 100,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "IFTYPE_HEIGHT": {
+      "value": 104,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "IFTYPE_HIDDEN": {
+      "value": 120,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): bool"
+    },
+    "IFTYPE_CHILDREN_COUNT": {
+      "value": 2896,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): u64"
+    },
+    "IFTYPE_CHILDREN_DATA": {
+      "value": 2904,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): -> 16-byte shared_ptr entries"
+    },
+    "IFTYPE_TEXT": {
+      "value": 344,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): inline-or-char* string; flag:"
+    },
+    "IFTYPE_TEXT_FLAG": {
+      "value": 367,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): bit7 = heap, SSO len = 0x17-flag"
+    },
+    "IFTYPE_TEXT2": {
+      "value": 368,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "IFTYPE_TEXT2_FLAG": {
+      "value": 391,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "IFTYPE_SCAN_SPAN": {
+      "value": 1024,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): struct prefix the tally reads per component"
+    },
+    "IFTYPE_CHAIN_MAX": {
+      "value": 16,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): depth cap on any parent walk"
+    },
+    "ENTITY_ANIMATION": {
+      "value": 1240,
+      "status": "verified",
+      "evidence": "compiled default (client/offsets.hpp): current animation id, -1 when idle"
+    },
+    "ENTITY_ORIENTATION": {
+      "value": 992,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): 0..2047, 0 = south, rising clockwise"
+    },
+    "PLAYER_COMBAT_LEVEL": {
+      "value": 1844,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): Combat level, on a PLAYER entity. NPCs keep theirs on the shared definition instead -- reading this on an NPC live returned a pointer fragment (the high half of a heap address), never a level. On the local player it read -1, so this offset is simply WRONG on client-240-6. NOT VERIFIED -- re-derive from the client's combat-level Lua binding before trusting any number that comes out of here."
+    },
+    "LOGIN_PASSWORD_DELTA": {
+      "value": 508,
+      "status": "refuted",
+      "evidence": "compiled default (client/offsets.hpp): --------------------------------------------------------------------------------------------------- THE LOGIN FORM'S FIELDS -- NOT VERIFIED --------------------------------------------------------------------------------------------------- Distance from the client's username buffer to its password buffer, so the autologin plugin can SET the two fields instead of typing them at a form whose focus i"
+    },
+    "OPLOC1": {
+      "value": 3,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): scenery, first option: Chop down / Mine / Open / Climb..."
+    },
+    "OPNPC1": {
+      "value": 9,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): NPC options one through five. Attack is normally the first, but not always -- Talk-to is first on a shopkeeper -- so a bot that always sends OPNPC1 will happily talk to a cow."
+    },
+    "OPNPC2": {
+      "value": 10,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "OPNPC3": {
+      "value": 11,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "OPNPC4": {
+      "value": 12,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "OPNPC5": {
+      "value": 13,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): "
+    },
+    "OP_WALK": {
+      "value": 31,
+      "status": "default",
+      "evidence": "compiled default (client/offsets.hpp): Walk to a tile. THIRTY-ONE, not twenty-three.  There is a neighbouring opcode that also looks like a walk and is not: it scales the coordinates you give it through the viewport ratio before storing them, so feeding it scene tiles walks you to a place that has nothing to do with where you asked. This one takes scene tiles directly. If your character walks somewhere baffling, this is the first thing"
+    }
+  }
+}

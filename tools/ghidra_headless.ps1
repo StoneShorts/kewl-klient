@@ -34,7 +34,7 @@ $scriptDir = Join-Path $PSScriptRoot "ghidra_scripts"
 
 # -import on the first run creates and analyses the project. On later runs Ghidra notices the program is
 # already there and reuses the analysis, which is why this is slow exactly once.
-& $headless $Project KewlKlient `
+& $headless $Project 0xClient `
     -import $Client `
     -scriptPath $scriptDir `
     -postScript $Script `

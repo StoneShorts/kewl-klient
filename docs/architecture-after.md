@@ -13,22 +13,22 @@ The bridge contract summary is section 3; the byte-level detail stays where it b
 ## 1. Processes and build
 
 Still one Gradle project (`build.gradle`) driving both halves, and the same output layout:
-`build/dist/` holds `KewlKlient.exe`, `kewlklient.dll`, `kewlklient.jar`, `kewlklient.ini`. What
+`build/dist/` holds `0xClient.exe`, `0xclient.dll`, `0xclient.jar`, `0xclient.ini`. What
 changed is who draws the control panel and where its state lives:
 
 ```
        launcher (its own process)            injected into the game (its own process)
     ┌──────────────────────────┐          ┌──────────────────────────────────────────┐
-    │  KewlKlient.exe (ImGui)  │ spawn    │  osclient.exe                            │
-    │  "+ client" button  ─────┼────────> │   └─ kewlklient.dll (injected)           │
-    │  reads the model region  │  inject  │       reads memory, starts a JVM ────────┼──> kewlklient.jar
+    │  0xClient.exe (ImGui)  │ spawn    │  osclient.exe                            │
+    │  "+ client" button  ─────┼────────> │   └─ 0xclient.dll (injected)           │
+    │  reads the model region  │  inject  │       reads memory, starts a JVM ────────┼──> 0xclient.jar
     │  writes the edit ring    │<════════>│       25 natives, Java2D overlays        │      api + your plugins
     │  software-raster ImGui   │  shared  │       PluginManager, ProfileManager, Hub │      plugin state + profiles
     └──────────────────────────┘  memory  └──────────────────────────────────────────┘
 ```
 
-- **`launcher/main.cpp`** spawns `osclient.exe` (path from `[kewl] game=` in `kewlklient.ini`),
-  injects `kewlklient.dll` (`CreateRemoteThread` + `LoadLibraryW`), and `SetParent`s the game into
+- **`launcher/main.cpp`** spawns `osclient.exe` (path from `[oxclient] game=` in `0xclient.ini`),
+  injects `0xclient.dll` (`CreateRemoteThread` + `LoadLibraryW`), and `SetParent`s the game into
   its own window: game on the left, a 286 px ImGui strip on the right (250 px body + 36 px rail).
   The strip is drawn by the **launcher process** with the software rasterizer
   (`client/imgui_sw.hpp`, vendored ImGui 1.93 under `third_party/imgui/`) — the game owns the only
@@ -37,7 +37,7 @@ changed is who draws the control panel and where its state lives:
   and in that mode skips the host-window + Java2D-panel creation entirely: the DLL keeps overlays
   pinned to the game child and runs the bridge server. In direct-inject (no launcher) it does
   exactly what it always did — host window, Java2D `SidePanel` popup, `panelMouse` events.
-- `kewlklient.ini` grew from one setting to five, and only one of them is new plugin-adjacent state:
+- `0xclient.ini` grew from one setting to five, and only one of them is new plugin-adjacent state:
   `java=` (JDK path, build-stamped), `game=` and `dll=` (launcher inputs), `sidebar=open|collapsed`
   (the one thing the launcher persists between boots — the spec's "preserve sidebar open/closed
   state"), and `hub=` (the plugin hub's manifest URL; see `HubConfig`). It is still not plugin state.
@@ -49,18 +49,18 @@ every claim below was verified offline.
 
 Unchanged as a concept, sharpened in implementation:
 
-1. **Launcher mode (the default path).** `KewlKlient.exe` spawns, injects, embeds, and calls
-   `KewlKlient.setPanelMode(true)` before the first tick. From then on Java draws **only** overlays
+1. **Launcher mode (the default path).** `0xClient.exe` spawns, injects, embeds, and calls
+   `OxClient.setPanelMode(true)` before the first tick. From then on Java draws **only** overlays
    (`SidePanel.frame` returns immediately, `panelMouse` never arrives) and the panel pixels belong
    to the launcher's rasterizer. All panel data crosses the shared-memory bridge (section 3).
 2. **Direct-inject (legacy, still working, deliberately untouched).** `osclient.exe` run by hand with
    the DLL injected (`tools/wine_inject.exe` does this on Linux): the DLL detects no launcher
-   signal, builds its own host window, and the Java2D `kewl.ui.SidePanel` draws the control panel
-   into its own layered window exactly as before. Its views (`kewl.ui.PluginListView`,
+   signal, builds its own host window, and the Java2D `oxclient.ui.SidePanel` draws the control panel
+   into its own layered window exactly as before. Its views (`oxclient.ui.PluginListView`,
    `ConfigView`, `ProfilesView`, `DebugView`, `Theme`) were kept and now read and write the same
    Java-side owners the ImGui panel talks to — `ProfilesView` was moved off its session-only map
    onto the real profile store, and its Reset buttons now call `Setting.reset()` like the bridge's
-   reset edits do. `kewl.ui.Sidebar` (the pre-overlay Swing panel) is still dead code, kept only
+   reset edits do. `oxclient.ui.Sidebar` (the pre-overlay Swing panel) is still dead code, kept only
    because `ConfigDefaultsTest` reflects into it; see "Remaining limitations" in `PROGRESS.md`.
 
 ## 3. The bridge (v2)
@@ -68,15 +68,15 @@ Unchanged as a concept, sharpened in implementation:
 All of it is still one JNI class plus one shared-memory region, now with a v2 contract that every
 side compiles asserts against:
 
-- `kewl.Natives` — unchanged: `viewport()`, `present(pixels,w,h)`, `presentPanel(pixels,w,h)`
+- `oxclient.Natives` — unchanged: `viewport()`, `present(pixels,w,h)`, `presentPanel(pixels,w,h)`
   (direct-inject panel only), `container(id)`, `input()`, and the other registered natives. 21
   methods, all in `client/jvm.hpp`'s `RegisterNatives` table — the whole unsafe surface.
-- `KewlKlient.tick(int keys)` — unchanged in shape: `Plugin.drainLater()` (queued edits), hotkey
+- `OxClient.tick(int keys)` — unchanged in shape: `Plugin.drainLater()` (queued edits), hotkey
   toggles, per-plugin `tick()`, then `render()`. Still the only thread that has ever touched plugin
   state.
-- `kewl.panel.PanelBridge` — FORMAT **2**. `snapshot()` packs the whole panel model into an `int[]`;
+- `oxclient.panel.PanelBridge` — FORMAT **2**. `snapshot()` packs the whole panel model into an `int[]`;
   the DLL's `buildModel` (`client/bridge.hpp`) parses it and repacks it into the model region of
-  `Local\KewlKlientBridge-<pid>`; the launcher's reader (`launcher/bridge_layout.hpp`) parses the
+  `Local\0xClientBridge-<pid>`; the launcher's reader (`launcher/bridge_layout.hpp`) parses the
   region. Edits go the other way through a 208-byte record ring, and the DLL dispatches them onto
   `PanelBridge`'s set*/command methods.
 
@@ -167,40 +167,40 @@ than guessing; an unknown kind is consumed and dropped, so an old jar can never 
 
 ## 4. Java subsystems (what the migration added)
 
-All new code lives in small packages under `java/kewl/`; none of it widens the JNI surface.
+All new code lives in small packages under `java/oxclient/`; none of it widens the JNI surface.
 
-- **`kewl.plugin.PluginManager`** — the one place a plugin is switched on or off. Idempotence (no
+- **`oxclient.plugin.PluginManager`** — the one place a plugin is switched on or off. Idempotence (no
   second `onEnable`), exception isolation (a hook that throws leaves the plugin **off** and records
   the failure — it must not keep ticking, and the tick loop must not die), registry ownership
   (`register`/`unregister`, insertion order, the cap, duplicate-id refusal), `shutdown()` for clean
   teardown. `Plugin.setEnabled` became a one-line hand-off to it, with the old inline transition
   kept verbatim for the pre-manager window (the bare test suite, the instant before start-up).
-- **`kewl.profile.ProfileManager`** — the Setting persistence sink and the PluginManager listener.
+- **`oxclient.profile.ProfileManager`** — the Setting persistence sink and the PluginManager listener.
   Per-profile enabled map + non-default settings under `<dataDir>/profiles/<id>/config.json`,
-  `index.json` for the list/active id/pins. Writes are atomic (tmp + rename, `kewl.persist.JsonStore`)
+  `index.json` for the list/active id/pins. Writes are atomic (tmp + rename, `oxclient.persist.JsonStore`)
   and debounced 750 ms on a single daemon IO thread; corrupt files are quarantined to `.bad` and
   fallen back from. "A profile is a complete statement": silence means off and code defaults, which
   is what makes switching actually isolate. **Pins are global**, not per profile — a documented
   decision (a pin is a fact about the user, not about a way of playing). Migration is honest:
   nothing was ever persisted before, so first run creates one empty "default" profile.
-- **`kewl.profile.SettingCodec`** — folds a Setting's value into the four things JSON has. Colours
+- **`oxclient.profile.SettingCodec`** — folds a Setting's value into the four things JSON has. Colours
   are ARGB (`#rrggbb`, `#aarrggbb` — the order `Color.getRGB()`/`Color.decode` both speak; pinned by
   `SettingCodecTest`). Enums are stored by option `toString`, so a plugin that reorders its options
   keeps every stored value that still names one.
-- **`kewl.plugin.hub`** — `HubConfig` (manifest URL from `kewl.hub.url` / `KEWL_HUB` / `hub=` in
-  kewlklient.ini / `client.json`; empty means "no hub configured", shown as an error state),
+- **`oxclient.plugin.hub`** — `HubConfig` (manifest URL from `oxclient.hub.url` / `OXC_HUB` / `hub=` in
+  0xclient.ini / `client.json`; empty means "no hub configured", shown as an error state),
   `HubEntry` (manifest validation: id shape, name/version/mainClass, https or `file:` artifact,
   mandatory SHA-256), `HubLoader` (child-first `URLClassLoader` per plugin; refuses a mainClass that
-  does not extend `kewl.Plugin` or that resolved from the client), and `Hub` (the state machine:
+  does not extend `oxclient.Plugin` or that resolved from the client), and `Hub` (the state machine:
   async fetch/download/verify on one worker, size limit, atomic move into place, `installed.json`,
   remove, update, restore at start-up). Hub state surfaces in the model as `hubState` + per-entry
   flags, so the UI shows progress from the model rather than from a blocking call.
-- **`kewl.persist.JsonStore`** + **`kewl.json.Json`** — atomic JSON writes and a small reader; no
+- **`oxclient.persist.JsonStore`** + **`oxclient.json.Json`** — atomic JSON writes and a small reader; no
   external JSON dependency reached the jar.
-- **`kewl.Plugin` metadata** — `id()` (derived from the name by default, override when two plugins
+- **`oxclient.Plugin` metadata** — `id()` (derived from the name by default, override when two plugins
   would collide), `version()`, `author()`, `tags()`, all defaulted so the simple plugin stays
   exactly as simple as it was.
-- **`KewlKlient.start()`** — the wiring order is the state-flow order: profile store first (it wants
+- **`OxClient.start()`** — the wiring order is the state-flow order: profile store first (it wants
   to be the Setting sink before anything can set), then the manager over the deterministic built-in
   list, then the hub (which reloads installed externals in the background), and only then the
   default-on list — and even there, only where the profile has no opinion, so a stored "off" beats a
@@ -209,15 +209,15 @@ All new code lives in small packages under `java/kewl/`; none of it widens the J
 
 ## 5. Plugin inventory (the registry is still the registry, plus the seam externals join through)
 
-`KewlKlient.PLUGINS` is still a static `List.of(...)` and the list is still the registry — no
-scanning, no annotation processor. `KewlKlient.plugins()` now returns the *manager's* live list once
+`OxClient.PLUGINS` is still a static `List.of(...)` and the list is still the registry — no
+scanning, no annotation processor. `OxClient.plugins()` now returns the *manager's* live list once
 one is installed, so hub-registered plugins appear in the same order-based index space the edit
 records name. Ten entries as of 2026-09-06: PlayerVisuals, NpcVisuals, Woodcutter,
 RlitePlugin("Shortest Path"), RlitePlugin("NPC Indicators"), RlitePlugin("Player Indicators"),
 RlitePlugin("Test Rlite"), RlitePlugin("Test Actors"), AutoLogin, AntiIdle -- the two Indicators
 ports are the only ones in `defaultOn()`. New entries are APPENDED, because edit records address a
 plugin by its index in this list. The ported Shortest Path is unchanged:
-eager object graph via `kewl.rl.Injector`, 79 proxied RuneLite settings + `autoWalk`, pathfinding on
+eager object graph via `oxclient.rl.Injector`, 79 proxied RuneLite settings + `autoWalk`, pathfinding on
 its own single-thread executor with results marshalled to the frame thread via `ClientThread`.
 
 ## 6. Config lifecycle (after)
@@ -242,13 +242,13 @@ The spec's thread list, with what actually runs on each:
 
 | Thread | What runs there | The rule that holds |
 |---|---|---|
-| **Launcher UI thread** (`WinMain` pump) | message pump → `frame()`: phase machine, `bridgeTick` (mutex → revision check → `readModel`), self-heal, ImGui NewFrame/Render, software raster, BitBlt; all input via WndProc → ImGuiIO | never blocks: no network, no file I/O beyond the ini read at start-up, the ini write on a collapse toggle, and the PAM frame dumps the KEWL_DUMP_* probes ask for; model parsing is bounds-checked and reject-early |
-| **DLL run thread** (`DllMain` spawns one) | window discovery, launcher-mode detection, `JNI_CreateJavaVM`, the 33 ms loop: window reconciliation, `bridge::tick()` (revision poll + `drainEdits`), `kk::tickJvm()` | the frame thread. Every JNI call happens here; Java's `tick()` drains `Plugin.later`, so an edit is sequenced with the frame thread by construction. A new edit kind's Java handler must not block — hub refresh and profile writes hand off to owners that do their I/O elsewhere and publish results by bumping the model revision |
-| **Java frame thread** (the same thread, inside the JVM) | `KewlKlient.tick`: drain later-queue, hotkeys, per-plugin `tick()`/`render()`, overlay canvas, `SidePanel.frame` (direct-inject only) | the only thread that has ever touched plugin state; non-blocking, no network, no per-frame disk writes (persistence is mark-dirty + schedule) |
-| **`kewl-profile-io`** (single daemon) | debounced profile/index writes | never holds the profile lock while doing file I/O — the JSON snapshot is built under `lock`, written after it is released |
-| **`kewl-hub`** (single daemon) | manifest fetches, artifact download + SHA-256, install/remove file work | the frame thread only flips volatiles; registry changes are posted back through `Plugin.later` |
+| **Launcher UI thread** (`WinMain` pump) | message pump → `frame()`: phase machine, `bridgeTick` (mutex → revision check → `readModel`), self-heal, ImGui NewFrame/Render, software raster, BitBlt; all input via WndProc → ImGuiIO | never blocks: no network, no file I/O beyond the ini read at start-up, the ini write on a collapse toggle, and the PAM frame dumps the OXC_DUMP_* probes ask for; model parsing is bounds-checked and reject-early |
+| **DLL run thread** (`DllMain` spawns one) | window discovery, launcher-mode detection, `JNI_CreateJavaVM`, the 33 ms loop: window reconciliation, `bridge::tick()` (revision poll + `drainEdits`), `oxc::tickJvm()` | the frame thread. Every JNI call happens here; Java's `tick()` drains `Plugin.later`, so an edit is sequenced with the frame thread by construction. A new edit kind's Java handler must not block — hub refresh and profile writes hand off to owners that do their I/O elsewhere and publish results by bumping the model revision |
+| **Java frame thread** (the same thread, inside the JVM) | `OxClient.tick`: drain later-queue, hotkeys, per-plugin `tick()`/`render()`, overlay canvas, `SidePanel.frame` (direct-inject only) | the only thread that has ever touched plugin state; non-blocking, no network, no per-frame disk writes (persistence is mark-dirty + schedule) |
+| **`oxc-profile-io`** (single daemon) | debounced profile/index writes | never holds the profile lock while doing file I/O — the JSON snapshot is built under `lock`, written after it is released |
+| **`oxc-hub`** (single daemon) | manifest fetches, artifact download + SHA-256, install/remove file work | the frame thread only flips volatiles; registry changes are posted back through `Plugin.later` |
 | **`shortest-path-%d`** (single, per restart) | the ported pathfinder | results marshalled to the frame thread via `ClientThread.invokeLater`/`drain()` |
-| Swing event thread | **nothing new.** Direct-inject's Java2D panel draws on the frame thread like everything else; `kewl.ui.Sidebar` is the one Swing file left and nothing launches it | no Swing event-thread dependency in any new code |
+| Swing event thread | **nothing new.** Direct-inject's Java2D panel draws on the frame thread like everything else; `oxclient.ui.Sidebar` is the one Swing file left and nothing launches it | no Swing event-thread dependency in any new code |
 
 No unsynchronized mutable collection is shared across the boundary: the model region crosses under
 the mutex, the ring is SPSC with the publish-before-head store order, and everything else crosses as
@@ -265,7 +265,7 @@ queued runnables or immutable snapshots.
    `ProfileManager`; hub actions → `Hub`. `PanelBridge` is a transport, never an owner. Nothing
    writes a `Setting`'s value field directly; nothing calls `onEnable` from UI code.
 3. **The registry order is load-bearing.** Edit records name plugins by index into
-   `KewlKlient.plugins()`; the list is never re-sorted (the launcher sorts its *display* copy only),
+   `OxClient.plugins()`; the list is never re-sorted (the launcher sorts its *display* copy only),
    and unregistering shifts the rest, which is exactly why the model revision moves on unregister.
 4. **Optimistic echo, then truth.** The launcher mutates its local parsed copy first (toggle flips,
    enum echoes, pin stars) and enqueues the edit; the next `modelRevision` bump overwrites the echo
@@ -284,7 +284,7 @@ migration added:
 
 - **Collapse.** The rail's chevron hides the 250 px body and widens the game the same frame;
   `effectivePanelW()` is the single place the strip width is computed, so `layoutEmbed`, `selfHeal`
-  and `WM_SIZE` all agree. The state persists in `kewlklient.ini` (`sidebar=open|collapsed`) —
+  and `WM_SIZE` all agree. The state persists in `0xclient.ini` (`sidebar=open|collapsed`) —
   deliberately not `imgui.ini`, which is disabled (`io.IniFilename = nullptr`) on purpose.
 - **Navigation.** `uiTab()` (four rail tabs: plugins, profiles, hub, debug) plus `uiStack()` — a real
   push/pop stack of plugin config views with back/reset, replacing v1's single `uiPushed()` int. A
@@ -296,12 +296,12 @@ migration added:
 
 | Before | After |
 |---|---|
-| `KewlKlient` statics as de facto manager | `kewl.plugin.PluginManager` owns every transition |
+| `0xClient` statics as de facto manager | `oxclient.plugin.PluginManager` owns every transition |
 | name/description/hotkey/status only | `id/version/author/tags` defaulted on `Plugin`; failure state surfaced by the manager |
 | nothing persisted anywhere | profile store + index.json + `installed.json`, atomic and debounced |
 | in-memory profiles, generated names, no rename/duplicate | `ProfileManager` with stable ids, create/rename/duplicate/delete/switch, persisted active profile |
 | pins did not exist | `SET_PIN` edit → global pin state in index.json, echoed in the model |
-| Plugin Hub did not exist | `kewl.plugin.hub` + the hub tab, driven by a configurable manifest endpoint |
+| Plugin Hub did not exist | `oxclient.plugin.hub` + the hub tab, driven by a configurable manifest endpoint |
 | PanelBridge v1 (plugins + settings) | format 2: pins, profiles, hub, per-section guards, five-counter revision |
 | reset had no bridge edit kind | kinds 4 and 5, routed through the manager |
 | launcher profiles tab a placeholder | profiles view: switch/create/rename/duplicate/delete with the click-again-to-confirm arm |

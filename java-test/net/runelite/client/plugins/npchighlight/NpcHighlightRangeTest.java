@@ -1,5 +1,5 @@
 // The pure half of the "Highlight every NPC" range gate: Chebyshev tile distance, the unit the rest
-// of the client measures range in (kewl.api.Game.distanceTo and WorldPoint.distanceTo2D are both
+// of the client measures range in (oxclient.api.Game.distanceTo and WorldPoint.distanceTo2D are both
 // max(|dx|,|dy|)). No client, no natives.
 package net.runelite.client.plugins.npchighlight;
 

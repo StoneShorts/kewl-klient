@@ -1,6 +1,6 @@
 # Third-party notices
 
-KewlKlient itself is **GPL-3.0** — see [`LICENSE`](LICENSE). This file covers the code and data in
+0xClient itself is **GPL-3.0** — see [`LICENSE`](LICENSE). This file covers the code and data in
 this repository that other people wrote, and where each one's licence text lives. Everything here is
 either vendored with its licence in place or carried as an upstream-licensed source file; nothing
 below is GPL-incompatible with the project's own licence.
@@ -32,7 +32,7 @@ below is GPL-incompatible with the project's own licence.
   > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
   `imgui_demo.cpp` is deliberately not in the build (it drags in half the API surface this project
-  does not use — see the `kewl_imgui` target in `CMakeLists.txt`); its absence does not change the
+  does not use — see the `oxc_imgui` target in `CMakeLists.txt`); its absence does not change the
   licence of what is built.
 
 ## Shortest Path plugin — vendored, BSD 2-Clause
@@ -60,7 +60,7 @@ below is GPL-incompatible with the project's own licence.
   two BSD-2 redistribution clauses).
 - **What is *not* upstream:** everything else under `java/net/runelite/` is a hand-written shim, not
   RuneLite — the client/config/eventbus/overlay/callback classes this project reimplements on top of
-  kewl's API. [`java/net/runelite/README.md`](java/net/runelite/README.md) is the statement of which
+  0xClient's API. [`java/net/runelite/README.md`](java/net/runelite/README.md) is the statement of which
   is which, file class by file class. No RuneLite source beyond the vendored constant/value files is
   present, and no RuneLite binaries or artwork are redistributed.
 
@@ -70,14 +70,14 @@ The following are **this project's own code**, written here to satisfy a ported 
 they are not copies of the upstream libraries and carry no upstream licence obligations:
 
 - `java/com/google/inject/`, `java/javax/inject/`, `java/javax/annotation/` — the `@Inject`,
-  `@Provides`, `@Nonnull`, `@Nullable` annotation shims (`kewl.rl.Injector` is the hand-rolled
+  `@Provides`, `@Nonnull`, `@Nullable` annotation shims (`oxclient.rl.Injector` is the hand-rolled
   injector that reads them).
 - `java/com/google/common/util/concurrent/ThreadFactoryBuilder.java` — the whole used surface of
   Guava's builder, reimplemented so the pathfinder's thread naming compiles.
 
 ## Build- and test-time dependencies (Gradle, never shipped)
 
-Declared in `build.gradle` and fetched by the wrapper; **none of them reach `kewlklient.jar`**
+Declared in `build.gradle` and fetched by the wrapper; **none of them reach `0xclient.jar`**
 (lombok is `compileOnly`/`annotationProcessor` — build-time code generation for the vendored
 RuneLite files' `@Getter`s — and the other two are `testImplementation`):
 
@@ -86,16 +86,16 @@ RuneLite files' `@Getter`s — and the other two are `testImplementation`):
 - **Mockito** 4.11.0 — MIT License.
 
 There are no other third-party dependencies: no JSON library, no GUI toolkit, no network stack, no
-detour/injection library. The JSON reader/writer (`kewl/json/Json.java`), the atomic file store
-(`kewl/persist/JsonStore.java`) and the software ImGui rasterizer (`client/imgui_sw.hpp`) are this
+detour/injection library. The JSON reader/writer (`oxclient/json/Json.java`), the atomic file store
+(`oxclient/persist/JsonStore.java`) and the software ImGui rasterizer (`client/imgui_sw.hpp`) are this
 project's own code.
 
 ## Artwork, icons, fonts
 
 The panel's icons and glyphs are drawn with ImGui draw-list calls in `launcher/panel_ui.hpp` and the
-Java2D helpers in `kewl/ui/Hud.java`/`Theme.java` — there are no third-party image assets, icon sets
+Java2D helpers in `oxclient/ui/Hud.java`/`Theme.java` — there are no third-party image assets, icon sets
 or font files vendored anywhere in the repository, and nothing is distributed that was not either
-written here or licensed above. (`kewl/ui/Theme.java` loads fonts from the operating system at
+written here or licensed above. (`oxclient/ui/Theme.java` loads fonts from the operating system at
 runtime — Segoe UI / Arial / Consolas on Windows, DejaVu under Wine — it does not ship them.) The one
 image resource, `resources/marker.png`, belongs to the Shortest Path plugin and is covered by its
 notice above.

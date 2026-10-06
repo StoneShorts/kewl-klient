@@ -369,9 +369,9 @@ public interface ShortestPathConfig extends Config
 		return 5;
 	}
 
-	// Kewl addition (2026-09-06), not upstream. Auto-walk clicks the ground to move -- the client's
+	// 0xClient addition (2026-09-06), not upstream. Auto-walk clicks the ground to move -- the client's
 	// menu-action function is not derived on client-240-6, but posted clicks work (see
-	// kewl.api.Actions.walk). Input into a live game has to be paced: a click per frame would fight
+	// oxclient.api.Actions.walk). Input into a live game has to be paced: a click per frame would fight
 	// the client's own router and look exactly like a bot. Three ticks is ~1.8 s, roughly how often a
 	// person re-clicks while running a long path; 1 is as fast as this will ever go.
 	@Range(

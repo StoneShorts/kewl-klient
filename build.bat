@@ -22,7 +22,7 @@ if errorlevel 1 (
 echo.
 echo done -- everything is in build\dist\
 echo   1. start OSRS and log in
-echo   2. run build\dist\KewlKlient.exe and press the button
+echo   2. run build\dist\0xClient.exe and press the button
 echo.
 echo   (or just: gradlew run)
 endlocal

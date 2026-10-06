@@ -1,5 +1,5 @@
 // Shim of net.runelite.api.Actor (BSD-2, RuneLite) -- an abstract base over the per-frame primitives
-// kewl.api.Entity / kewl.api.Local expose, so NPC and Player share every projection helper.
+// oxclient.api.Entity / oxclient.api.Local expose, so NPC and Player share every projection helper.
 //
 // What is real here: position (scene tile, fine render position, ground height under the actor),
 // animation, orientation, name. What is approximated, and says so in its javadoc: the convex hull
@@ -15,7 +15,7 @@ import java.awt.image.BufferedImage;
 
 import javax.annotation.Nullable;
 
-import kewl.api.Game;
+import oxclient.api.Game;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
@@ -28,10 +28,10 @@ public abstract class Actor
 	 * compatibility. Upstream's default is 1000 in the deob's units; on this build a ground height of
 	 * -312 projected ~290 px while a tile is ~130-230 px wide, i.e. vertical units project roughly 1:1
 	 * with horizontal ones, which makes a humanoid ~150-250 units (a floor is ~240). 200 is the guess;
-	 * the [actors] probe line in kewl.rl.TestActors (feet vs head pixel) settles it, and the
-	 * `kewl.actor.height` system property or {@link #setLogicalHeight} moves it live.
+	 * the [actors] probe line in oxclient.rl.TestActors (feet vs head pixel) settles it, and the
+	 * `oxclient.actor.height` system property or {@link #setLogicalHeight} moves it live.
 	 */
-	private static volatile int logicalHeight = Integer.getInteger("kewl.actor.height", 200);
+	private static volatile int logicalHeight = Integer.getInteger("oxclient.actor.height", 200);
 
 	public static int logicalHeight()
 	{
@@ -123,7 +123,7 @@ public abstract class Actor
 	/**
 	 * The rendered position in fine units -- between tiles while walking, matching upstream's
 	 * interpolated LocalPoint. Falls back to the tile centre when the fine position is unread (the
-	 * same guard kewl.api.Entity.screen uses).
+	 * same guard oxclient.api.Entity.screen uses).
 	 */
 	public LocalPoint getLocalLocation()
 	{

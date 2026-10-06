@@ -22,10 +22,10 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-// Ported from RuneLite's Player Indicators onto the kewl shim. Upstream's menu recolouring and
+// Ported from RuneLite's Player Indicators onto the 0xClient shim. Upstream's menu recolouring and
 // clan-rank icons are gone (the game menu is unreadable, no rank sprites); what is left is the
-// scene and minimap overlays over PlayerIndicatorsService. The status line (kewl.rl.StatusSource)
-// and the [playerindicators] KEWL_LOG lines are the diagnostics for the first live run: other
+// scene and minimap overlays over PlayerIndicatorsService. The status line (oxclient.rl.StatusSource)
+// and the [playerindicators] OXC_LOG lines are the diagnostics for the first live run: other
 // players' names (Natives.entityName(uid, true)) are NOT yet confirmed to read.
 //
 // Names are only ever logged as set/empty, never their text -- other players are other people.
@@ -54,7 +54,7 @@ import net.runelite.client.util.Text;
 	description = "Highlight players on-screen and/or on the minimap",
 	tags = {"highlight", "minimap", "overlay", "players"}
 )
-public class PlayerIndicatorsPlugin extends Plugin implements kewl.rl.StatusSource
+public class PlayerIndicatorsPlugin extends Plugin implements oxclient.rl.StatusSource
 {
 	@Inject
 	private OverlayManager overlayManager;

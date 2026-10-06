@@ -1,4 +1,4 @@
-# Testing KewlKlient on Linux, under Wine
+# Testing 0xClient on Linux, under Wine
 
 The shipped target is Windows and stays Windows. But the game itself runs fine under Wine 10
 (64-bit; the missing `wine32` does not matter, osclient.exe is x64), and Wine implements every Win32
@@ -22,7 +22,7 @@ TOOLCHAIN=<llvm-mingw>/bin/x86_64-w64-mingw32-g++
 cmake -DCMAKE_TOOLCHAIN_FILE=tools/mingw-toolchain.cmake.in ...   # see script below
 ```
 
-`tools/wine-setup.sh` does all of it: builds `kewlklient.dll` + `KewlKlient.exe` with llvm-mingw,
+`tools/wine-setup.sh` does all of it: builds `0xclient.dll` + `0xClient.exe` with llvm-mingw,
 builds the jar, and assembles `build/wine-dist/` (DLL, jar, exe, ini, `wine_inject.exe`).
 
 Two things make the cross build different from the MSVC one, both handled in `CMakeLists.txt`:
@@ -39,40 +39,40 @@ Two things make the cross build different from the MSVC one, both handled in `CM
 ```bash
 cd /tmp/osclient && WINEDEBUG=-all wine osclient.exe > /tmp/osrs-wine.log 2>&1 &
 # log in...
-cd build/wine-dist && wine wine_inject.exe 'Z:\build\wine-dist\kewlklient.dll'
+cd build/wine-dist && wine wine_inject.exe 'Z:\build\wine-dist\0xclient.dll'
 ```
 
 - `wine_inject.exe` is the launcher's injection without the button — for scripting. Same rules as
   the launcher: it refuses to inject twice into one game session, so restart the game after a rebuild.
 - The injected JVM's `System.out` goes to the **game's stdout**, i.e. `/tmp/osrs-wine.log`. The
-  success line is `KewlKlient: 5 plugins`; plugin tick/render exceptions land there too.
+  success line is `0xClient: 5 plugins`; plugin tick/render exceptions land there too.
 - Known harmless noise on startup: one `NetworkInterface` stack trace from Java's entropy seeding —
   Wine's enumeration trips it, Java falls back to another source, nothing is affected.
 - C++-side errors (`java=` wrong, jar missing) draw in red on the overlay itself, as on Windows.
 
 ### The launcher under Wine
 
-`build/wine-dist/KewlKlient.exe` is the ImGui launcher: it spawns the game, injects the DLL, embeds
+`build/wine-dist/0xClient.exe` is the ImGui launcher: it spawns the game, injects the DLL, embeds
 the game's window into its own and draws the 286px panel strip itself (software rasterizer, no
-second GL context). Point it at the game first — `[kewl] game=` in `kewlklient.ini`, absolute or
-relative to the exe; the DLL's own `[kewlklient] java=` is read from the same file:
+second GL context). Point it at the game first — `[oxclient] game=` in `0xclient.ini`, absolute or
+relative to the exe; the DLL's own `[0xclient] java=` is read from the same file:
 
 ```ini
-[kewlklient]
+[0xclient]
 java=C:\jdk-17.0.20.1+1-jre
 
-[kewl]
+[oxclient]
 game=Z:\home\me\.cache\osclient\osclient.exe
 ```
 
 `tools/launcher-smoke.sh` brings the launcher up under Wine, verifies the panel strip offline
-(`KEWL_FAKE_PANEL` — a synthetic model region through the real parser, checked by pixel values in a
+(`OXC_FAKE_PANEL` — a synthetic model region through the real parser, checked by pixel values in a
 PAM dump of the window DIB, never a screenshot), prints the launcher's pid, and then lists the live
 probes. It never clicks "+ client" itself: spawning and injecting a real game is the human's test.
 
-Two env switches are useful without a game at all: `KEWL_FAKE_PANEL=1` draws the strip from the
-synthetic model (add `KEWL_FAKE_CONFIG=1` to push a config view, `KEWL_FAKE_TAB=debug|profiles` to
-pick a tab), and `KEWL_DUMP_FRAME=<path>` writes frame 30 of the window's DIB as a P7 PAM.
+Two env switches are useful without a game at all: `OXC_FAKE_PANEL=1` draws the strip from the
+synthetic model (add `OXC_FAKE_CONFIG=1` to push a config view, `OXC_FAKE_TAB=debug|profiles` to
+pick a tab), and `OXC_DUMP_FRAME=<path>` writes frame 30 of the window's DIB as a P7 PAM.
 
 ## What does not work here (yet)
 

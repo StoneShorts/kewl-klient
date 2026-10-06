@@ -1,5 +1,5 @@
-// Shim: the plugin sources use @Inject purely as a marker for KewlKlient's own reflection injector
-// (java/kewl/rl/Injector.java). No Guice -- just enough annotation to keep the sources unmodified.
+// Shim: the plugin sources use @Inject purely as a marker for OxClient's own reflection injector
+// (java/oxclient/rl/Injector.java). No Guice -- just enough annotation to keep the sources unmodified.
 package com.google.inject;
 
 import java.lang.annotation.ElementType;

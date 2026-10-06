@@ -1,6 +1,6 @@
 ---
 name: deob
-description: Reverse-engineer the OSRS client to find or re-derive an offset, function RVA, or struct field for KewlKlient. Use when an offset broke after a game update, or when adding a feature that needs data the client does not expose yet.
+description: Reverse-engineer the OSRS client to find or re-derive an offset, function RVA, or struct field for 0xClient. Use when an offset broke after a game update, or when adding a feature that needs data the client does not expose yet.
 ---
 
 # Finding things in the game binary
@@ -110,9 +110,14 @@ off a function the client wrote, not guessed from a dump.
   helper, though its closure body turned out to be the projection leaf we wanted. Check the strings
   around a hit before trusting what a name means.
 
-Then put the RVA in `client/offsets.hpp` and **update `BUILD_ID` in the same commit**. Every number in
-that file was measured on one build; mixing values from two builds is how you get a crash that looks
-like a logic bug.
+Then put the value where it belongs. Offsets are per-build data now: the DLL loads
+`offsets/client-<build>.json` at start-up, so a number found by hand goes into that build's file with
+`"status": "derived"` and the instruction it was read from as evidence. `client/offsets.hpp` keeps the
+compiled defaults and the HOW FOUND note; change it too when the note changes. And teach
+`tools/ghidra_scripts/DeriveOffsets.java` the shape you just read, so the next build does not need a
+person: `DumpAnchors.java` prints the instruction context behind every binding name, which is what
+the script's rules are written against. Never mix values from two builds in one file; that is how
+you get a crash that looks like a logic bug.
 
 ## Struct fields
 

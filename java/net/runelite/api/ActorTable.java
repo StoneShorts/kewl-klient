@@ -1,7 +1,7 @@
 // Shim-only (not an upstream type): the registry that gives NPC and Player objects a stable identity
 // across frames.
 //
-// kewl.api.Game rebuilds its Entity snapshots every frame -- new objects each time. RuneLite plugins
+// oxclient.api.Game rebuilds its Entity snapshots every frame -- new objects each time. RuneLite plugins
 // need the opposite: the SAME NPC object from NpcSpawned to NpcDespawned, held in their own sets and
 // compared by reference. This table bridges the two: keyed by (kind, uid), it re-points each actor at
 // this frame's snapshot, creates actors for new uids, and drops the ones that left. NPC and player
@@ -20,8 +20,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import kewl.api.Entity;
-import kewl.api.Game;
+import oxclient.api.Entity;
+import oxclient.api.Game;
 
 public final class ActorTable
 {
@@ -48,7 +48,7 @@ public final class ActorTable
 	/** One line per session for the local-duplicate filter above, not one per frame. */
 	private static boolean loggedLocalDuplicate;
 
-	/** Idempotent per frame token (kewl.KewlKlient.frame()). */
+	/** Idempotent per frame token (oxclient.OxClient.frame()). */
 	public static void refresh(int frame)
 	{
 		if (frame == ActorTable.frame)
@@ -91,7 +91,7 @@ public final class ActorTable
 
 	/**
 	 * The testable core. {@code localPresent} decides whether the local Player heads the player list
-	 * (upstream's client.getPlayers() includes you; kewl's Game.players() excludes you).
+	 * (upstream's client.getPlayers() includes you; 0xClient's Game.players() excludes you).
 	 */
 	static void refreshFrom(List<Entity> npcEntities, List<Entity> playerEntities, boolean localPresent, int frame)
 	{

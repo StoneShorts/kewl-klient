@@ -7,7 +7,7 @@
 //
 // Usage: -postScript CttiRefs.java bb1e50   (string rva inside the ctti function)
 //
-//@category KewlKlient
+//@category OxClient
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;

@@ -1,6 +1,6 @@
 // jvm.hpp -- start a Java VM inside the game and hand it the few things it needs.
 //
-// This is the bit that makes KewlKlient worth forking: plugins are Java, not C++. You edit a .java file,
+// This is the bit that makes 0xClient worth forking: plugins are Java, not C++. You edit a .java file,
 // run one build, restart the client, and your plugin is live. Nobody needs a C++ toolchain to write a
 // bot, or to draw an overlay.
 //
@@ -30,11 +30,11 @@
 #include "overlay.hpp"
 #include "panel.hpp"
 
-namespace kk {
+namespace oxc {
 
 inline JavaVM*   g_vm     = nullptr;
-inline jclass    g_api    = nullptr;   // kewl.KewlKlient  -- lifecycle
-inline jclass    g_nat    = nullptr;   // kewl.Natives     -- where the natives are registered
+inline jclass    g_api    = nullptr;   // oxclient.OxClient  -- lifecycle
+inline jclass    g_nat    = nullptr;   // oxclient.Natives     -- where the natives are registered
 inline jmethodID g_tick   = nullptr;
 inline jmethodID g_status = nullptr;
 // Mouse events from the panel window, delivered up to Java. Optional: an older jar without
@@ -42,10 +42,10 @@ inline jmethodID g_status = nullptr;
 inline jmethodID g_panelMouse = nullptr;
 
 // The panel bridge (launcher mode), resolved lazily by bridgeResolve(). Everything here is optional:
-// a jar from before the launcher has no kewl.panel.PanelBridge at all, and launcher mode then runs
+// a jar from before the launcher has no oxclient.panel.PanelBridge at all, and launcher mode then runs
 // with an empty panel model and no edits rather than a dead game. Each method is guarded on its own,
 // so a half-matched jar degrades exactly as far as it has to.
-inline jclass    g_bridgeCls      = nullptr;   // kewl.panel.PanelBridge
+inline jclass    g_bridgeCls      = nullptr;   // oxclient.panel.PanelBridge
 inline bool      g_bridgeTried    = false;
 inline jmethodID g_bridgeRevision = nullptr;   // static long modelRevision()
 inline jmethodID g_bridgeSnapshot = nullptr;   // static int[] snapshot()
@@ -84,7 +84,7 @@ inline HWND g_gameWindow = nullptr;
 
 /// The window Java's pixels and coordinates are measured against -- see overlay.hpp g_canvasWindow.
 inline HWND canvasWindow() {
-    if (kk::g_canvasWindow && IsWindow(kk::g_canvasWindow)) return kk::g_canvasWindow;
+    if (oxc::g_canvasWindow && IsWindow(oxc::g_canvasWindow)) return oxc::g_canvasWindow;
     return g_gameWindow;
 }
 
@@ -150,7 +150,7 @@ inline jintArray JNICALL nLocal(JNIEnv* env, jclass) {
     bool found = false;
     Entity me = localPlayer(found);
     if (!found) return env->NewIntArray(0);
-    // Eleven ints: the eight kewl.api.Local always had, then the render position {fineX, fineH,
+    // Eleven ints: the eight oxclient.api.Local always had, then the render position {fineX, fineH,
     // fineY} (see nEntities). Local.read() checks the length, so both sides move together.
     jint v[11] = { me.uid, me.sceneX, me.sceneY, me.plane,
                    me.animation, me.orientation, runEnergy(), cycle(),
@@ -231,7 +231,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
     if (sx < -64.f || sy < -64.f || sx > cwW + 64.f || sy > cwH + 64.f)
         return static_cast<jlong>(0x8000000000000000ULL);
 
-    // Off unless KEWL_LOG is set -- the same gate the launcher's input diagnostics print behind
+    // Off unless OXC_LOG is set -- the same gate the launcher's input diagnostics print behind
     // (dllmain.cpp redirects stdout to the file it names). Unconditional here meant one line per
     // second in every session, which is noise nobody asked for. Once enabled, it MEASUREs the space
     // instead of arguing about it. What the first live run (2026-09-05) settled and what it left:
@@ -264,7 +264,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
     // right-click -- so "% 300" fired nearly every frame in a bank and 36 times in one right-click
     // frame, each burst walking the registry twice on the frame thread (review, 2026-09-05).
     static ULONGLONG lastBurst = 0;
-    static bool probeEnabled = ::getenv("KEWL_LOG") != nullptr;
+    static bool probeEnabled = ::getenv("OXC_LOG") != nullptr;
     const ULONGLONG nowMs = GetTickCount64();
     if (probeEnabled && nowMs - lastBurst >= 10000) {   // one burst per 10 s: a trace, not a firehose
         lastBurst = nowMs;
@@ -290,7 +290,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
             // (game.hpp prefers ENTITY_PLANE_COORD when it is 0..3 -- `plane=` shows the winner).
             const int raw420 = rd<std::int32_t>(me.addr + off::ENTITY_PLANE, -1);        // 0x420, SUSPECT
             const int raw7CC = rd<std::int32_t>(me.addr + off::ENTITY_PLANE_COORD, -1);  // 0x7CC, decompile
-            kk::logf("[proj] you@scene(%d,%d) centre -> (%.1f,%.1f) canvas=%dx%d cam=(%d,%d,%d) "
+            oxc::logf("[proj] you@scene(%d,%d) centre -> (%.1f,%.1f) canvas=%dx%d cam=(%d,%d,%d) "
                      "cam-you=(%d,%d,%d) view=x%d/%d y%d/%d plane=%d raw420=%d raw7CC=%d\n",
                      me.sceneX, me.sceneY, mx, my, cwW, cwH, camX, camH, camY,
                      camX - cx, camH, camY - cy, outW, inW, outH, inH, me.plane, raw420, raw7CC);
@@ -305,7 +305,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
                 if (n < static_cast<int>(sizeof sweep) && projectFine(cx, h, cy, hx, hy))
                     n += std::snprintf(sweep + n, sizeof sweep - n, " h%d->(%.0f,%.0f)", h, hx, hy);
             }
-            kk::logf("%s\n", sweep);
+            oxc::logf("%s\n", sweep);
 
             // Render-position candidates on the local player's own struct. Live 2026-09-05 the tile
             // centre at datum height 0 drew ~290 canvas px below the character's feet, and the sweep
@@ -339,7 +339,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
                                         static_cast<unsigned long long>(o), tag, val);
                     ++shown;
                 }
-                kk::logf("%s%s\n", cand, shown >= 40 ? " ..." : "");
+                oxc::logf("%s%s\n", cand, shown >= 40 ? " ..." : "");
             }
 
             // Nearest NPC, for the typeId layout check. One extra registry walk per burst.
@@ -353,7 +353,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
             });
             if (haveNpc) {
                 std::uintptr_t def = rdp(npc.addr + off::ENTITY_DEF_PTR);
-                kk::logf("[proj] nearest npc uid=%d def=%p rawId=%d id=%d name=\"%s\" dist=%d\n",
+                oxc::logf("[proj] nearest npc uid=%d def=%p rawId=%d id=%d name=\"%s\" dist=%d\n",
                          npc.uid, reinterpret_cast<void*>(def), def ? rd<std::int32_t>(def, -1) : -1,
                          npcTypeId(npc.addr), npcName(npc.addr).c_str(), best);
                 // The two NxtStrings the name comes from, as raw bytes: the name read "" live on
@@ -364,7 +364,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
                     int n = std::snprintf(line, sizeof line, "[proj]   %s @%p:", what, reinterpret_cast<void*>(at));
                     for (int i = 0; i < 24 && n < static_cast<int>(sizeof line) - 4; ++i)
                         n += std::snprintf(line + n, sizeof line - n, " %02x", rd<std::uint8_t>(at + i, 0));
-                    kk::logf("%s\n", line);
+                    oxc::logf("%s\n", line);
                 };
                 dump("override", npc.addr + off::ENTITY_NAME_OVERRIDE);
                 if (def) dump("def+name", def + off::DEF_NAME);
@@ -390,7 +390,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
                                            static_cast<unsigned long long>(o), nm.c_str(), rd<std::int32_t>(ptr, -1));
                         ++shown;
                     }
-                    kk::logf("%s\n", line);
+                    oxc::logf("%s\n", line);
                     // Nothing on the entity: the transform must be resolved through the DEFINITION.
                     // Walk the base def for pointers to other named defs (direct children) and for
                     // pointers to arrays of such pointers (a child table), printing offset -> name(id).
@@ -426,7 +426,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
                                 }
                             }
                         }
-                        kk::logf("%s\n", l2);
+                        oxc::logf("%s\n", l2);
                     }
                 }
                 // DEF_NAME (+0x8) read an EMPTY inline string live for NPC 6521 (2026-09-05), so the
@@ -448,7 +448,7 @@ inline jlong JNICALL nProject(JNIEnv*, jclass, jint fineX, jint fineHeight, jint
                                            static_cast<unsigned long long>(o), s.c_str());
                         ++shown;
                     }
-                    kk::logf("%s\n", line);
+                    oxc::logf("%s\n", line);
                 }
             }
             std::fflush(stdout);
@@ -549,7 +549,7 @@ inline void JNICALL nPresentPanel(JNIEnv* env, jclass, jintArray px, jint w, jin
 // ---------------------------------------------------------------------------------------------------
 // Button-press LATCH. nInput samples GetAsyncKeyState once per overlay frame (~33 ms), so a click that
 // is pressed AND released between two samples -- a fast human right-click, or any synthetic one -- was
-// never seen at all: the shim's popup (kewl.rl.MenuPopup) keys off the up->down edge and simply did
+// never seen at all: the shim's popup (oxclient.rl.MenuPopup) keys off the up->down edge and simply did
 // not open (live 2026-09-06: a shift+right-click reached the game's own menu and nothing of ours).
 // A WH_MOUSE hook on the game's window thread sees every WM_xBUTTONDOWN the game itself receives, so
 // it records "pressed since the last snapshot" plus the shift state AT the press -- the popup needs
@@ -575,7 +575,7 @@ inline LRESULT CALLBACK mouseLatchHook(int code, WPARAM w, LPARAM l) {
             // Every latched right press, with the message that caused it: an ordinary LEFT click was
             // seen opening the right-click popup live (2026-09-06), and this line is what says whether
             // the hook is mislabelling a message or something downstream invents the press.
-            kk::logf("[input] latch: RBUTTONDOWN (msg 0x%x)\n", static_cast<unsigned>(w));
+            oxc::logf("[input] latch: RBUTTONDOWN (msg 0x%x)\n", static_cast<unsigned>(w));
         }
     }
     return CallNextHookEx(g_mouseHook, code, w, l);
@@ -598,7 +598,7 @@ inline void installMouseLatch(HWND gameWindow) {
     }
     g_mouseHookTid = tid;
     g_mouseHook = SetWindowsHookExW(WH_MOUSE, mouseLatchHook, nullptr, tid);
-    kk::logf("[input] mouse latch hook %s (thread %lu)\n", g_mouseHook ? "installed" : "FAILED",
+    oxc::logf("[input] mouse latch hook %s (thread %lu)\n", g_mouseHook ? "installed" : "FAILED",
              static_cast<unsigned long>(tid));
 }
 
@@ -647,7 +647,7 @@ inline jintArray JNICALL nInput(JNIEnv* env, jclass) {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Input INTO the game (2026-09-05, NOT yet exercised live -- kewl.plugins.AutoLogin is the first user).
+// Input INTO the game (2026-09-05, NOT yet exercised live -- oxclient.plugins.AutoLogin is the first user).
 //
 // Everything here is PostMessageW to NXT's JagRenderView child, nothing else. Why that and not
 // SendInput: SendInput is delivered to whatever window is FOREGROUND and focused. Our queues are
@@ -690,7 +690,7 @@ inline HWND inputTarget() {
         logged = t;
         wchar_t cls[64] = L"";
         if (t && IsWindow(t)) GetClassNameW(t, cls, 64);
-        kk::logf("[input] target %p class=%ls\n", static_cast<void*>(t), cls);
+        oxc::logf("[input] target %p class=%ls\n", static_cast<void*>(t), cls);
     }
     return t;
 }
@@ -768,7 +768,7 @@ inline jintArray JNICALL nInputTarget(JNIEnv* env, jclass, jboolean grab) {
         if (grab) {
             DWORD_PTR ign = 0;
             if (SendMessageTimeoutW(t, WM_NULL, 0, 0, SMTO_ABORTIFHUNG, 50, &ign)) SetFocus(t);
-            else kk::logf("[input] game not pumping -- focus grab skipped\n");
+            else oxc::logf("[input] game not pumping -- focus grab skipped\n");
         }
         v[2] = GetFocus() == t ? 1 : 0;
         HWND fg = GetForegroundWindow();
@@ -889,7 +889,7 @@ inline jint JNICALL nSetLoginField(JNIEnv* env, jclass, jlong at, jstring value,
 
     const auto a = static_cast<std::uintptr_t>(at);
     const std::size_t window = static_cast<std::size_t>(cap);
-    if (!kk::readable(a, window)) return -2;
+    if (!oxc::readable(a, window)) return -2;
 
     MEMORY_BASIC_INFORMATION mbi{};
     if (!VirtualQuery(reinterpret_cast<void*>(a), &mbi, sizeof mbi)) return -3;
@@ -920,7 +920,7 @@ inline jint JNICALL nSetLoginField(JNIEnv* env, jclass, jlong at, jstring value,
 
     std::memcpy(buf, v.data(), v.size());
     buf[v.size()] = '\0';
-    kk::logf("[loginfield] wrote a field at %p (verified writable, buffer was %s)\n",
+    oxc::logf("[loginfield] wrote a field at %p (verified writable, buffer was %s)\n",
              reinterpret_cast<void*>(a), existing == 0 ? "empty" : "already this value");
     return 0;
 }
@@ -998,10 +998,10 @@ inline jstring JNICALL nDumpWidgetText(JNIEnv* env, jclass, jint max) {
                     // x,y are CANVAS coordinates wherever the parent chain resolves, and the stored
                     // parent-relative pair only where it does not (widgetAbs falls back to exactly what
                     // widget() has always returned, and says so through `complete`). That one change is
-                    // what makes kewl.api.Widgets.smallestContaining work at all: it matches a point
+                    // what makes oxclient.api.Widgets.smallestContaining work at all: it matches a point
                     // that is known good on the canvas against these rectangles, and against relative
                     // ones no component ever contained the point -- its own doc predicted that failure.
-                    // The LINE FORMAT is deliberately untouched; kewl.api.Widgets.parseLine reads it and
+                    // The LINE FORMAT is deliberately untouched; oxclient.api.Widgets.parseLine reads it and
                     // is covered by tests.
                     const WidgetAbs abs = widgetAbs(static_cast<int>((g << 16) | i));
                     char line[256];
@@ -1167,7 +1167,7 @@ inline jintArray JNICALL nWidgetAbs(JNIEnv* env, jclass, jint id) {
 }
 
 /// The parent chain behind one widgetAbs answer, as a line a human can check in one look. Diagnostic:
-/// called once a session under KEWL_LOG, never per frame. The last hop is the self-test -- a group
+/// called once a session under OXC_LOG, never per frame. The last hop is the self-test -- a group
 /// root must read (0,0) at exactly the canvas size, and that says whether IFTYPE_X/Y are the laid-out
 /// rect (this whole approach) or the cache originals (a much bigger job) without measuring anything by
 /// eye.
@@ -1243,7 +1243,7 @@ inline jintArray JNICALL nLoadedGroups(JNIEnv* env, jclass) {
 ///
 /// The obvious `std::string(w.begin(), w.end())` compiles, works on every path you personally test, and
 /// then mangles the classpath for anybody whose Windows username is not pure ASCII -- which is a lot of
-/// people, and whose symptom is "kewl/Natives not found" with a perfectly correct-looking path in the
+/// people, and whose symptom is "oxclient/Natives not found" with a perfectly correct-looking path in the
 /// error. UTF-8 is what the JVM expects here.
 inline std::string narrow(const std::wstring& w) {
     if (w.empty()) return {};
@@ -1256,9 +1256,9 @@ inline std::string narrow(const std::wstring& w) {
     return out;
 }
 
-/// Load jvm.dll. `javaHome` comes from kewlklient.ini so nobody has to guess where your JDK is.
+/// Load jvm.dll. `javaHome` comes from 0xclient.ini so nobody has to guess where your JDK is.
 /// `detail` is filled in on failure with the exact path tried and the Win32 error, because "check
-/// java= in kewlklient.ini" is useless advice on its own -- it does not say what the client READ, and a
+/// java= in 0xclient.ini" is useless advice on its own -- it does not say what the client READ, and a
 /// path that is subtly mangled (a lost backslash, a stray quote) looks correct at a glance in the file.
 /// Print what was attempted and the problem is usually obvious on sight.
 inline HMODULE loadJvmDll(const std::wstring& javaHome, std::string& detail) {
@@ -1318,17 +1318,17 @@ inline bool startJvm(const std::wstring& javaHome, const std::wstring& jarPath, 
 
     // NOTE: -Djava.security.egd was tried here and does nothing under Wine -- the JDK's entropy
     // collector calls NetworkInterface regardless of the source, and Wine's GetAdaptersAddresses
-    // fails. The fix is on the Java side: kewl.WineRandomProvider, inserted before any plugin loads.
+    // fails. The fix is on the Java side: oxclient.WineRandomProvider, inserted before any plugin loads.
 
     std::vector<std::string> optStrings{ cp, headless };
-    // With KEWL_LOG set, a JVM crash report lands next to the log instead of in the game's working
+    // With OXC_LOG set, a JVM crash report lands next to the log instead of in the game's working
     // directory, where nobody looks for it. Java's own System.out/err already go to the log: log.hpp
     // installed the file as the process's standard handles before we got here.
-    if (const char* log = ::getenv("KEWL_LOG")) {
+    if (const char* log = ::getenv("OXC_LOG")) {
         std::string dir(log);
         auto cut = dir.find_last_of("\\/");
         dir = cut == std::string::npos ? "." : dir.substr(0, cut);
-        optStrings.push_back("-XX:ErrorFile=" + dir + "\\kewl_hs_err_%p.log");
+        optStrings.push_back("-XX:ErrorFile=" + dir + "\\oxc_hs_err_%p.log");
     }
     std::vector<JavaVMOption> opt(optStrings.size());
     for (std::size_t i = 0; i < optStrings.size(); ++i) opt[i].optionString = optStrings[i].data();
@@ -1345,8 +1345,8 @@ inline bool startJvm(const std::wstring& javaHome, const std::wstring& jarPath, 
         return false;
     }
 
-    jclass natLocal = env->FindClass("kewl/Natives");
-    if (!natLocal) { err = "kewl/Natives not found -- is kewlklient.jar next to the DLL?"; return false; }
+    jclass natLocal = env->FindClass("oxclient/Natives");
+    if (!natLocal) { err = "oxclient/Natives not found -- is 0xclient.jar next to the DLL?"; return false; }
     g_nat = static_cast<jclass>(env->NewGlobalRef(natLocal));
 
     const JNINativeMethod natives[] = {
@@ -1389,15 +1389,15 @@ inline bool startJvm(const std::wstring& javaHome, const std::wstring& jarPath, 
     };
     if (env->RegisterNatives(g_nat, natives, sizeof(natives) / sizeof(natives[0])) != JNI_OK) { err = "RegisterNatives failed"; return false; }
 
-    jclass local = env->FindClass("kewl/KewlKlient");
-    if (!local) { err = "kewl/KewlKlient not found"; return false; }
+    jclass local = env->FindClass("oxclient/OxClient");
+    if (!local) { err = "oxclient/OxClient not found"; return false; }
     g_api = static_cast<jclass>(env->NewGlobalRef(local));
 
     jmethodID start = env->GetStaticMethodID(g_api, "start", "()V");
     g_tick   = env->GetStaticMethodID(g_api, "tick", "(I)V");
     g_status = env->GetStaticMethodID(g_api, "status", "()Ljava/lang/String;");
     g_panelMouse = env->GetStaticMethodID(g_api, "panelMouse", "(IIIZ)V");
-    if (!start || !g_tick) { err = "kewl.KewlKlient needs static start() and tick(int)"; return false; }
+    if (!start || !g_tick) { err = "oxclient.OxClient needs static start() and tick(int)"; return false; }
 
     env->CallStaticVoidMethod(g_api, start);
     if (env->ExceptionCheck()) { env->ExceptionDescribe(); env->ExceptionClear(); }
@@ -1437,20 +1437,20 @@ inline void panelMouse(int x, int y, int button, bool down) {
 
 // ---------------------------------------------------------------------------------------------------
 // The panel bridge's JNI half (launcher mode). Every entry point here is written so that a jar
-// without kewl.panel.PanelBridge is an EMPTY PANEL, never a crash: bridgeResolve() tries the class
+// without oxclient.panel.PanelBridge is an EMPTY PANEL, never a crash: bridgeResolve() tries the class
 // exactly once, clears whatever NotFound exception the attempt raised, and the callers then see
 // bridgeAvailable() == false and fall back (see bridge.hpp). The same guards cover a jar that has the
 // class but not a given method, which is the in-between state during development.
 // ---------------------------------------------------------------------------------------------------
 
-/// Find kewl.panel.PanelBridge and its statics, once. Cheap after the first call: two branch reads.
+/// Find oxclient.panel.PanelBridge and its statics, once. Cheap after the first call: two branch reads.
 inline bool bridgeResolve() {
     if (g_bridgeTried) return g_bridgeRevision != nullptr && g_bridgeSnapshot != nullptr;
     g_bridgeTried = true;
 
     JNIEnv* e = env();
     if (!e) return false;
-    jclass local = e->FindClass("kewl/panel/PanelBridge");
+    jclass local = e->FindClass("oxclient/panel/PanelBridge");
     if (!local) {                       // NoClassDefFoundError on an old jar -- cleared, not fatal
         if (e->ExceptionCheck()) e->ExceptionClear();
         return false;
@@ -1524,7 +1524,7 @@ inline std::vector<jint> bridgeSnapshot() {
 }
 
 /// The class name of a pending exception, for one log line about it. ExceptionDescribe's stack trace
-/// goes to stderr, which a launcher-spawned game does not even have (KEWL_LOG only redirects stdout),
+/// goes to stderr, which a launcher-spawned game does not even have (OXC_LOG only redirects stdout),
 /// and the edit ring can deliver a burst of records in one tick -- the name is what the line needs,
 /// and Java's own code logs the detail around whatever it did not expect.
 ///
@@ -1604,7 +1604,7 @@ inline bool bridgeApply(std::int32_t kind, std::int32_t pluginIdx, const char* k
         const unsigned bit = (kind >= 0 && kind < 31) ? (1u << kind) : (1u << 31);
         if (!(g_bridgeKindsLogged & bit)) {
             g_bridgeKindsLogged |= bit;
-            kk::logf("[bridge] edit kind %d has no Java method on this jar -- dropped\n", kind);
+            oxc::logf("[bridge] edit kind %d has no Java method on this jar -- dropped\n", kind);
             std::fflush(stdout);
         }
         return true;
@@ -1658,7 +1658,7 @@ inline bool bridgeApply(std::int32_t kind, std::int32_t pluginIdx, const char* k
     // line naming it, then clear, and the edit is CONSUMED either way: re-delivering a record Java
     // has rejected would wedge the ring on it and every edit behind it.
     if (e->ExceptionCheck()) {
-        kk::logf("[bridge] edit kind %d threw %s (cleared)\n", kind, exceptionName(e).c_str());
+        oxc::logf("[bridge] edit kind %d threw %s (cleared)\n", kind, exceptionName(e).c_str());
         std::fflush(stdout);
         e->ExceptionClear();
     }
@@ -1692,4 +1692,4 @@ inline std::string jvmStatus() {
     return out;
 }
 
-}  // namespace kk
+}  // namespace oxc

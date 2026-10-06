@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace kk {
+namespace oxc {
 
 /// One layered window's back buffer: a DIB, its pixels, and the UpdateLayeredWindow call.
 ///
@@ -119,9 +119,9 @@ inline Layered g_overlay;
 /// dllmain.cpp; null until then.
 inline HWND g_canvasWindow = nullptr;
 
-}  // namespace kk
+}  // namespace oxc
 
-namespace kk::overlay {
+namespace oxc::overlay {
 
 /// Move and resize the overlay to sit exactly on top of `game`'s client area. `game` may be a child
 /// window (it is, once the host embeds it) -- ClientToScreen walks the parent chain, so the result is
@@ -137,4 +137,4 @@ inline void followWindow(HWND game) {
                  SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-}  // namespace kk::overlay
+}  // namespace oxc::overlay

@@ -1,8 +1,8 @@
 // The seam between the RuneLite shim and the memory offsets that do not exist yet.
 //
-// Every method here is either wired to kewl (nothing left to do) or holds an honest default with a
+// Every method here is either wired to 0xClient (nothing left to do) or holds an honest default with a
 // comment naming the offset it is waiting for. Phase D of the port re-derives those offsets one at a
-// time; each lands by filling in its method here plus a native in kewl.Natives -- nothing else in the
+// time; each lands by filling in its method here plus a native in oxclient.Natives -- nothing else in the
 // shim needs to change.
 package net.runelite.api;
 
@@ -40,11 +40,11 @@ public class ClientState
 
 	public int getVarpValue(int id)
 	{
-		if (id < 0 || !kewl.api.Game.ready())
+		if (id < 0 || !oxclient.api.Game.ready())
 		{
 			return -1;
 		}
-		return kewl.Natives.varp(id);
+		return oxclient.Natives.varp(id);
 	}
 
 	/**
@@ -60,11 +60,11 @@ public class ClientState
 		{
 			return 0; // unknown varbit id: fail closed
 		}
-		if (id < 0 || !kewl.api.Game.ready())
+		if (id < 0 || !oxclient.api.Game.ready())
 		{
 			return 0; // varps not up yet: fail closed
 		}
-		int varp = kewl.Natives.varp(def[0]);
+		int varp = oxclient.Natives.varp(def[0]);
 		return (varp >> def[1]) & ((1 << def[2]) - 1);
 	}
 
@@ -127,7 +127,7 @@ public class ClientState
 
 	public GameState getGameState()
 	{
-		return GameState.of(kewl.Natives.gameState());
+		return GameState.of(oxclient.Natives.gameState());
 	}
 
 	public EnumSet<WorldType> getWorldType()
@@ -155,13 +155,13 @@ public class ClientState
 	private volatile boolean rbuttonDown;
 	private volatile boolean mbuttonDown;
 	/**
-	 * Set by kewl's menu popup for the frames it is on screen. The game's own menu-open flag lives in
+	 * Set by 0xClient's menu popup for the frames it is on screen. The game's own menu-open flag lives in
 	 * the menu struct that is not readable yet (Phase D), so "is a menu open" is answered by the menu
 	 * we drew ourselves -- which is the only menu entries get created for right now anyway.
 	 */
 	private volatile boolean popupMenuOpen;
 	/**
-	 * The scene tile the right-click landed on, parked here by kewl's menu popup when it opens. While
+	 * The scene tile the right-click landed on, parked here by 0xClient's menu popup when it opens. While
 	 * the popup is up the cursor is over a menu row rather than over the scene, so WorldView's
 	 * nearest-tile-to-cursor scan would answer with the row's neighbour; getSelectedSceneTile()
 	 * returns this tile instead for every frame isMenuOpen() is true. Not game state.
@@ -183,18 +183,18 @@ public class ClientState
 	 * trailing entries are key EDGES, up to 16 of them (the native's buffer is 8 + 16 slots, and an
 	 * edge past the 16th in one frame is dropped -- its held/released state still updates, so a key
 	 * kept down does not re-fire next frame). The bridge dispatches the edges as KeyEvents, so a
-	 * Keybind hotkey works the way it does in RuneLite, and kewl's menu popup watches rightButton
+	 * Keybind hotkey works the way it does in RuneLite, and 0xClient's menu popup watches rightButton
 	 * for the right-click that opens it.
 	 *
 	 * <p>The frame check makes this idempotent per frame: the native computes edges against the
 	 * previous frame, so a second call in the same frame (two bridged plugins tick in sequence) must
-	 * not consume them -- both read the same snapshot. The token is kewl's own frame counter, not
+	 * not consume them -- both read the same snapshot. The token is 0xClient's own frame counter, not
 	 * anything read from game memory: a stale offset that returned a constant would otherwise collapse
 	 * every frame into one and silently kill the whole input pipeline.</p>
 	 */
 	public void setInputState(int[] buttons)
 	{
-		int frame = kewl.KewlKlient.frame();
+		int frame = oxclient.OxClient.frame();
 		if (frame == lastInputFrame)
 		{
 			return;
@@ -373,7 +373,7 @@ public class ClientState
 	 * cached: a frame's overlays ask for it once per drawn point, and all of them must rotate by the
 	 * SAME yaw or the path shears across the minimap.
 	 *
-	 * <p>The frame token is kewl's own counter, the same one setInputState uses, not anything read
+	 * <p>The frame token is 0xClient's own counter, the same one setInputState uses, not anything read
 	 * from game memory -- a stale offset that returned a constant would otherwise freeze the yaw at
 	 * whatever it was when the client started.</p>
 	 */
@@ -433,20 +433,20 @@ public class ClientState
 	 */
 	private void refreshCameraBasis()
 	{
-		int frame = kewl.KewlKlient.frame();
+		int frame = oxclient.OxClient.frame();
 		if (frame == cameraBasisFrame)
 		{
 			return;
 		}
 		cameraBasisFrame = frame;
 
-		kewl.api.Local me = kewl.api.Game.me();
+		oxclient.api.Local me = oxclient.api.Game.me();
 		if (!me.exists())
 		{
 			return; // not in the world: the ordinary failure, and not worth a line
 		}
 		// The RENDER position when the client has one, else the tile centre: a zero render position
-		// is how kewl's entity reader reports "no fine position for this entity" (see
+		// is how 0xClient's entity reader reports "no fine position for this entity" (see
 		// Game.tileDistance), and projecting the scene origin instead of the player would put the
 		// probe a hundred tiles away where the perspective divide is nothing like the player's.
 		int fx = me.fineX(), fy = me.fineY();
@@ -458,10 +458,10 @@ public class ClientState
 		int h = me.height();
 		for (int d : CAMERA_PROBE_EXTENTS)
 		{
-			java.awt.Point north = kewl.api.Game.projectFine(fx, h, fy + d);
-			java.awt.Point south = kewl.api.Game.projectFine(fx, h, fy - d);
-			java.awt.Point east = kewl.api.Game.projectFine(fx + d, h, fy);
-			java.awt.Point west = kewl.api.Game.projectFine(fx - d, h, fy);
+			java.awt.Point north = oxclient.api.Game.projectFine(fx, h, fy + d);
+			java.awt.Point south = oxclient.api.Game.projectFine(fx, h, fy - d);
+			java.awt.Point east = oxclient.api.Game.projectFine(fx + d, h, fy);
+			java.awt.Point west = oxclient.api.Game.projectFine(fx - d, h, fy);
 			if (north == null || south == null || east == null || west == null)
 			{
 				continue; // one of the four fell off the canvas: try a tighter pair
@@ -483,10 +483,10 @@ public class ClientState
 				System.out.println("[shim] camera yaw derived from the projection: " + yaw
 					+ "/" + Perspective.YAW_UNITS + " -- minimap overlays now turn with the camera");
 			}
-			// The height axis is negative = up (kewl.api.Game.projectFine), so `h - d` is the RAISED
+			// The height axis is negative = up (oxclient.api.Game.projectFine), so `h - d` is the RAISED
 			// point and `h + d` the lowered one -- the order Perspective's upScreenDy is defined in.
-			java.awt.Point up = kewl.api.Game.projectFine(fx, h - d, fy);
-			java.awt.Point down = kewl.api.Game.projectFine(fx, h + d, fy);
+			java.awt.Point up = oxclient.api.Game.projectFine(fx, h - d, fy);
+			java.awt.Point down = oxclient.api.Game.projectFine(fx, h + d, fy);
 			int pitch = up != null && down != null
 				? Perspective.pitchFromScreenBasis(northDx, northDy, eastDx, eastDy, up.y - down.y)
 				: Perspective.pitchFromScreenBasis(northDx, northDy, eastDx, eastDy);
@@ -538,11 +538,11 @@ public class ClientState
 
 	public ItemContainer getItemContainer(int id)
 	{
-		if (id < 0 || !kewl.api.Game.ready())
+		if (id < 0 || !oxclient.api.Game.ready())
 		{
 			return null;
 		}
-		int[] flat = kewl.Natives.container(id);
+		int[] flat = oxclient.Natives.container(id);
 		if (flat == null || flat.length == 0)
 		{
 			return null;
@@ -565,14 +565,14 @@ public class ClientState
 
 	public Widget getWidget(int... ids)
 	{
-		if (ids == null || ids.length == 0 || !kewl.api.Game.ready())
+		if (ids == null || ids.length == 0 || !oxclient.api.Game.ready())
 		{
 			return null;
 		}
 		// RuneLite's convention: one argument is a packed id, two or more are groupId, componentId,
 		// then nested child indices.
 		int packed = ids.length == 1 ? ids[0] : (ids[0] << 16) | ids[1];
-		int[] root = kewl.Natives.widget(packed);
+		int[] root = oxclient.Natives.widget(packed);
 		if (root.length == 0)
 		{
 			return null;
@@ -586,7 +586,7 @@ public class ClientState
 		for (int i = 2; i < ids.length && w != null; i++)
 		{
 			Rectangle pb = w.getBounds();
-			int[] child = kewl.Natives.widgetChild(packed, ids[i]);
+			int[] child = oxclient.Natives.widgetChild(packed, ids[i]);
 			if (child.length == 0)
 			{
 				return null;
@@ -610,7 +610,7 @@ public class ClientState
 	 * <p>A single packed id used to take the component's stored x/y as if it were a canvas position.
 	 * It is not: it is relative to the parent, and nothing here could walk UP a packed id to find the
 	 * parent. That is why the minimap reported (53,8) while it visibly sat near x=1143, and why the
-	 * two map overlays stood down. {@link kewl.Natives#widgetAbs} takes RuneLite's own sum in C++ now,
+	 * two map overlays stood down. {@link oxclient.Natives#widgetAbs} takes RuneLite's own sum in C++ now,
 	 * and this is where every ported plugin gets it without being touched.</p>
 	 *
 	 * <p>IT WORKS, and that is a measurement rather than an expectation as of 2026-09-07. The running
@@ -661,7 +661,7 @@ public class ClientState
 		w.setRelativeX(v[1]);
 		w.setRelativeY(v[2]);
 		w.setCanvasAbsolute(absolute);
-		w.setText(kewl.Natives.widgetText(id));
+		w.setText(oxclient.Natives.widgetText(id));
 		// Children are the caller's problem: enumerating them costs one native call per child, which
 		// getWidget has no reason to pay for a widget the caller only wanted the bounds of.
 		w.setChildLoader(() -> fillChildren(w, id, w.getBounds().x, w.getBounds().y, w.isCanvasAbsolute()));
@@ -672,7 +672,7 @@ public class ClientState
 	//
 	// One native call per widget per FRAME, not per caller: an overlay asks for the same rectangle
 	// repeatedly while drawing (Perspective.localToMinimap wants the minimap rect for every point), and
-	// getWidget already pays two JNI round trips. Keyed on kewl's own frame counter, exactly as
+	// getWidget already pays two JNI round trips. Keyed on 0xClient's own frame counter, exactly as
 	// resolveMinimapWidget below is, and cleared whole rather than aged so nothing can go stale.
 
 	/**
@@ -707,7 +707,7 @@ public class ClientState
 			&& rootAbs[3] == canvasWidth && rootAbs[4] == canvasHeight;
 	}
 
-	// Concurrent, not plain: the shim is called from the render thread and from kewl's own tick, and a
+	// Concurrent, not plain: the shim is called from the render thread and from 0xClient's own tick, and a
 	// plain HashMap resized by two threads at once does not throw -- it can spin forever inside get().
 	// The frame counter itself is racy by a frame at worst, which costs one extra native call.
 	private static final Map<Integer, int[]> ABSOLUTE_BOUNDS = new java.util.concurrent.ConcurrentHashMap<>();
@@ -721,7 +721,7 @@ public class ClientState
 		{
 			return null;
 		}
-		int frame = kewl.KewlKlient.frame();
+		int frame = oxclient.OxClient.frame();
 		if (frame != absoluteBoundsFrame)
 		{
 			absoluteBoundsFrame = frame;
@@ -735,11 +735,11 @@ public class ClientState
 		int[] v;
 		try
 		{
-			v = kewl.Natives.widgetAbs(id);
+			v = oxclient.Natives.widgetAbs(id);
 		}
 		catch (UnsatisfiedLinkError e)
 		{
-			// An older kewlklient.dll: every widget keeps the parent-relative bounds it had before this
+			// An older 0xclient.dll: every widget keeps the parent-relative bounds it had before this
 			// work, every overlay keeps refusing, and nothing throws per frame.
 			widgetAbsMissing = true;
 			System.out.println("[shim] widgetAbs is not in this DLL -- widget positions stay"
@@ -762,7 +762,7 @@ public class ClientState
 	 * <p>This used to assert that the array carries "cache-defined static children and runtime-spawned
 	 * dynamic children alike". Nothing ever measured that, and in the Java client the static tree is
 	 * expressed by the parent link while the child array is the cc_create list. It is now MEASURABLE:
-	 * {@code kewl.Natives.widgetTreeProbe} reports how many components appear as somebody's child. If
+	 * {@code oxclient.Natives.widgetTreeProbe} reports how many components appear as somebody's child. If
 	 * that is near 0%, this list is dynamic-only and the static tree exists only through the parent
 	 * link that {@code widgetAbs} walks.</p>
 	 *
@@ -776,7 +776,7 @@ public class ClientState
 		int contentBottom = 0;
 		for (int i = 0; i < Widget.MAX_CHILDREN; i++)
 		{
-			int[] child = kewl.Natives.widgetChild(id, i);
+			int[] child = oxclient.Natives.widgetChild(id, i);
 			if (child.length == 0)
 			{
 				break; // past the last child: the whole list has been read
@@ -802,7 +802,7 @@ public class ClientState
 	 * live read and it is right about which resizable skin is in use, so honouring it keeps the
 	 * common case to a single native call -- but it no longer decides the ANSWER.</p>
 	 *
-	 * <p>Cached per frame (kewl's own frame counter, not game state): the plugin asks for this from
+	 * <p>Cached per frame (0xClient's own frame counter, not game state): the plugin asks for this from
 	 * its clip-area path and the shim asks again from {@link Perspective#localToMinimap} for every
 	 * drawn point, and three widget lookups per point would be three native calls per point.</p>
 	 */
@@ -810,7 +810,7 @@ public class ClientState
 	 * The minimap draw area, or null when its rectangle is not a CANVAS rectangle.
 	 *
 	 * <p>The gate is new and it is the honest one. Both consumers of this widget use its bounds as a
-	 * CLIP -- {@code kewl.rl.OverlayRenderer} and the ported plugin's own copy build an ellipse from
+	 * CLIP -- {@code oxclient.rl.OverlayRenderer} and the ported plugin's own copy build an ellipse from
 	 * it -- and a clip taken from a parent-relative rectangle is the failure that painted the world map
 	 * solid black. Both already treat null as "not this frame", so refusing here costs nothing and
 	 * removes a hole that {@code Perspective.minimapPlacementWarning} could not close: its left-half
@@ -833,7 +833,7 @@ public class ClientState
 					+ " but its parent chain did not reach a root, so (" + w.getBounds().x + ","
 					+ w.getBounds().y + ") is PARENT-RELATIVE -- minimap overlays stay off. This is a"
 					+ " REGRESSION, not the known state: on 2026-09-07 this same widget resolved"
-					+ " canvas-absolute at (1156,8) 152x152 on a 1356-wide canvas. Run with KEWL_LOG"
+					+ " canvas-absolute at (1156,8) 152x152 on a 1356-wide canvas. Run with OXC_LOG"
 					+ " for the widgetTreeProbe counts and the chain dump");
 			}
 			return null;
@@ -864,7 +864,7 @@ public class ClientState
 	 */
 	private Widget resolveMinimapWidget()
 	{
-		int frame = kewl.KewlKlient.frame();
+		int frame = oxclient.OxClient.frame();
 		if (frame == minimapWidgetFrame)
 		{
 			return minimapWidget;
@@ -890,7 +890,7 @@ public class ClientState
 	private static boolean loggedWidgetChain;
 
 	/**
-	 * Print the absolute-geometry evidence ONCE a session, under {@code KEWL_LOG}, so a wrong answer
+	 * Print the absolute-geometry evidence ONCE a session, under {@code OXC_LOG}, so a wrong answer
 	 * says which link is wrong instead of just being wrong.
 	 *
 	 * <p>Four readings, each of which fails differently:</p>
@@ -918,28 +918,28 @@ public class ClientState
 	 */
 	private void logWidgetChainOnce(Widget minimap)
 	{
-		if (loggedWidgetChain || System.getenv("KEWL_LOG") == null)
+		if (loggedWidgetChain || System.getenv("OXC_LOG") == null)
 		{
 			return;
 		}
 		loggedWidgetChain = true;
 		try
 		{
-			int[] vp = kewl.Natives.viewport();          // {x, y, width, height}
+			int[] vp = oxclient.Natives.viewport();          // {x, y, width, height}
 			int cw = vp != null && vp.length == 4 ? vp[2] : 0;
 			int chh = vp != null && vp.length == 4 ? vp[3] : 0;
-			for (String l : kewl.Natives.widgetTreeProbe().split("\n"))
+			for (String l : oxclient.Natives.widgetTreeProbe().split("\n"))
 			{
 				if (!l.isEmpty())
 				{
 					System.out.println("[shim] widget tree: " + l);
 				}
 			}
-			System.out.println("[shim] widgetAbs " + kewl.Natives.widgetChain(minimap.getId())
+			System.out.println("[shim] widgetAbs " + oxclient.Natives.widgetChain(minimap.getId())
 				+ "; canvas " + cw + "x" + chh);
 			int rootId = minimap.getId() & 0xFFFF0000;   // component 0, the conventional group root
 			int[] root = widgetAbs(rootId);
-			System.out.println("[shim] widgetAbs SELF-TEST " + kewl.Natives.widgetChain(rootId) + " -- "
+			System.out.println("[shim] widgetAbs SELF-TEST " + oxclient.Natives.widgetChain(rootId) + " -- "
 				+ (rootSelfTestPasses(root, cw, chh)
 					? "PASS: the group root is (0,0) at the canvas size, so the stored x/y are the"
 						+ " laid-out rectangle and this whole approach is sound"
@@ -948,7 +948,7 @@ public class ClientState
 						+ " ORIGINALS and position/size MODE fields must be derived instead -- see the"
 						+ " fork in client/offsets.hpp"));
 			System.out.println("[shim] widgetAbs WORLDMAP "
-				+ kewl.Natives.widgetChain(InterfaceID.Worldmap.MAP_CONTAINER)
+				+ oxclient.Natives.widgetChain(InterfaceID.Worldmap.MAP_CONTAINER)
 				+ " -- \"is not loaded\" here is the EXPECTED reading before the world map has ever"
 				+ " been opened (measured 2026-09-07); the group's data is not resident until then."
 				+ " An INCOMPLETE chain with the map OPEN would be the cross-group case, which needs"
@@ -963,7 +963,7 @@ public class ClientState
 	// -- definitions, map, menu --------------------------------------------------------------------------
 
 	/**
-	 * True while kewl's own menu popup is on screen. The game's menu-open flag lives in the menu
+	 * True while 0xClient's own menu popup is on screen. The game's menu-open flag lives in the menu
 	 * struct that is not readable yet (the menu native, Phase D) -- until then the only menu entries
 	 * that exist are the ones the popup shows, so its state IS the menu state.
 	 */
@@ -972,14 +972,14 @@ public class ClientState
 		return popupMenuOpen;
 	}
 
-	/** Called by kewl's menu popup for the frames it is drawn; not game state. */
+	/** Called by 0xClient's menu popup for the frames it is drawn; not game state. */
 	public void setPopupMenuOpen(boolean open)
 	{
 		popupMenuOpen = open;
 	}
 
 	/**
-	 * The tile the right-click landed on, for the frames kewl's popup menu is open; null otherwise.
+	 * The tile the right-click landed on, for the frames 0xClient's popup menu is open; null otherwise.
 	 * WorldView.getSelectedSceneTile() hands this back instead of scanning while isMenuOpen() is
 	 * true, so a plugin resolving a world point from a row click gets the tile under the
 	 * right-click, not the tile under whichever row the cursor has since moved onto.
@@ -989,7 +989,7 @@ public class ClientState
 		return menuOpenedTile;
 	}
 
-	/** Called by kewl's menu popup when it opens; cleared together with the flag when it closes. */
+	/** Called by 0xClient's menu popup when it opens; cleared together with the flag when it closes. */
 	public void setMenuOpenedTile(Tile tile)
 	{
 		menuOpenedTile = tile;

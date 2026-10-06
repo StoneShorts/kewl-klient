@@ -40,7 +40,7 @@ public final class ShimSupport
 	{
 		/**
 		 * A memory offset nobody has derived yet on client-240-6. Fixable: run the deob workflow,
-		 * add the offset to client/offsets.hpp and a native to kewl.Natives, fill in the method.
+		 * add the offset to client/offsets.hpp and a native to oxclient.Natives, fill in the method.
 		 */
 		NEEDS_OFFSET("needs an offset"),
 
@@ -230,8 +230,8 @@ public final class ShimSupport
 	}
 
 	/**
-	 * The full account, one gap per line, grouped by kind. Printed once per session by kewl.rl so the
-	 * KEWL_LOG trace of any run carries the list of everything the shim faked in it -- which is the
+	 * The full account, one gap per line, grouped by kind. Printed once per session by oxclient.rl so the
+	 * OXC_LOG trace of any run carries the list of everything the shim faked in it -- which is the
 	 * document a bug report like "the camera shows zeros" should be answered from.
 	 */
 	public static String report()

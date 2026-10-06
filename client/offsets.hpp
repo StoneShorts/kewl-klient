@@ -1,4 +1,4 @@
-// offsets.hpp -- every game-specific number KewlKlient depends on, in one file.
+// offsets.hpp -- every game-specific number 0xClient depends on, in one file.
 //
 // READ THIS BEFORE CHANGING ANYTHING HERE.
 //
@@ -14,14 +14,23 @@
 // build is this". If it does not match, every other number in this file is suspect and the client
 // refuses to start rather than reading garbage out of a stranger's address space.
 //
-// HOW TO RE-DERIVE THESE: see README.md, section "When the game updates". Short version: run the Ghidra
-// headless script in tools/, or open the exe in IDA and use the anchors named in the comments below.
-// Every one of these was found by anchoring on something the client itself names -- a string, a Lua
-// binding, a distinctive constant -- never by scanning for a byte pattern and hoping.
+// HOW TO RE-DERIVE THESE: see README.md, section "When the game updates". Short version: run
+// `python tools/update/update.py --latest`. It fetches the build, runs Ghidra headless with
+// tools/ghidra_scripts/DeriveOffsets.java (which mechanises the anchors named in the comments below)
+// and writes offsets/client-<build>.json. Every one of these was found by anchoring on something the
+// client itself names -- a string, a Lua binding, a distinctive constant -- never by scanning for a
+// byte pattern and hoping.
+//
+// THESE ARE DEFAULTS, NOT CONSTANTS. At start-up the DLL reads the host exe's version and loads
+// offsets/client-<version>.json (client/offsets_json.hpp), which overwrites every variable below
+// by name. The compiled values only apply when no file exists for the running build -- and the DLL
+// refuses to start unless that build is exactly BUILD_VERSION. Adding a variable here means
+// regenerating client/offsets_table.inc (python tools/update/gen_offset_table.py).
 #pragma once
 #include <cstdint>
+#include <string>
 
-namespace kk::off {
+namespace oxc::off {
 
 // ---------------------------------------------------------------------------------------------------
 // BUILD FINGERPRINT
@@ -37,7 +46,7 @@ namespace kk::off {
 // fetched from Jagex's own CDN (see .claude/skills/deob/SKILL.md). The registry/scene offsets below
 // were subsequently VERIFIED LIVE against that exact binary running under Wine (see their comments);
 // items marked NOT (re-)VERIFIED were read out of the binary but not confirmed against a running game.
-inline constexpr std::uintptr_t BUILD_ID = 0xF6140;
+inline std::uintptr_t BUILD_ID = 0xF6140;
 
 // The same build, as the client itself states it: osclient.exe's PE version resource carries the
 // release as FileVersion "240-6" (client-240-6 in the CDN metafile, above). BUILD_ID is an RVA and
@@ -45,7 +54,7 @@ inline constexpr std::uintptr_t BUILD_ID = 0xF6140;
 // single game byte is read, and dllmain.cpp does exactly that -- a mismatch refuses to start rather
 // than reading garbage out of a stranger's address space. Bump it in the same commit as everything
 // else in this file, never on its own.
-inline constexpr const wchar_t* BUILD_VERSION = L"240-6";
+inline std::wstring BUILD_VERSION = L"240-6";
 
 // ---------------------------------------------------------------------------------------------------
 // THE ROOT POINTER
@@ -56,14 +65,14 @@ inline constexpr const wchar_t* BUILD_VERSION = L"240-6";
 // a `mov rcx, [rip+X]` followed by reads of the skill arrays off rcx -- and those three arrays land
 // exactly on the SKILL_* offsets below, which is what makes this the client object, not a neighbour.
 // VERIFIED LIVE under Wine: *(base + 0xE95668) is the pointer every live read in this file went through.
-inline constexpr std::uintptr_t CLIENT_OBJ_PTR = 0xE95668;
+inline std::uintptr_t CLIENT_OBJ_PTR = 0xE95668;
 
 // ---------------------------------------------------------------------------------------------------
 // FUNCTIONS WE CALL (RVAs from the module base)
 // ---------------------------------------------------------------------------------------------------
 // The client's own "do a menu action" entry point. We call it instead of building network packets by
 // hand: it takes the same arguments the real menu does, and the client builds and sends the packet for
-// us. This is why KewlKlient does not need to know the wire protocol at all.
+// us. This is why 0xClient does not need to know the wire protocol at all.
 //
 // Signature (as we use it):
 //   void doAction(void* clientObj, int sceneX, int sceneY, int opcode, int targetId,
@@ -81,7 +90,7 @@ inline constexpr std::uintptr_t CLIENT_OBJ_PTR = 0xE95668;
 // packed widget id and +0x94 a component index, so this is the widget-menu action path, and the tile
 // actions may go through the minimenu entry exec (FUN_14037E990, vtable 0x140BC91B0 slot 1) instead.
 // Neither is confirmed against a real click. Hook first, call second.
-inline constexpr std::uintptr_t DO_ACTION = 0;
+inline std::uintptr_t DO_ACTION = 0;
 
 // The client's world->screen projection leaf. Takes {fineX, fineY, fineZ} and writes {screenX, screenY}.
 // "Fine" coordinates are tiles << 7 (i.e. 128 units per tile). It reads the camera out of the client
@@ -97,7 +106,7 @@ inline constexpr std::uintptr_t DO_ACTION = 0;
 // so what it writes is consistent with canvas pixels in that window's space. POINT ACCURACY NOT
 // VERIFIED: the probe projected the tile's south-west corner at height 0 (see jvm.hpp nProject),
 // which cannot be judged against the character; the centre probe is the pending test.
-inline constexpr std::uintptr_t WORLD_TO_SCREEN = 0x2202A0;
+inline std::uintptr_t WORLD_TO_SCREEN = 0x2202A0;
 
 // The projection's camera position and canvas-scale pair, read by the leaf above and by its last
 // step. HOW FOUND (client-240-6): FUN_1402202a0 (= WORLD_TO_SCREEN) subtracts three ints at
@@ -106,7 +115,7 @@ inline constexpr std::uintptr_t WORLD_TO_SCREEN = 0x2202A0;
 // where the second coordinate only ever reaches the depth and vertical terms). Its final step
 // FUN_140618ce0 then rescales the result: x *= (+0x5C)/(+0x20), y *= (+0x60)/(+0x24), all four ints
 // hanging off *(client+0x90)+0x10. These exist here only so nProject's probe (jvm.hpp; off unless
-// KEWL_LOG is set) can print them next to a projected point.
+// OXC_LOG is set) can print them next to a projected point.
 //
 // VERIFIED LIVE 2026-09-05 (Windows, logged in, three samples): +0x20/+0x24 read (1606,900) then
 // (1356,900), and +0x5C/+0x60 read exactly the same -- i.e. the four ints are TWO (width,height)
@@ -120,16 +129,16 @@ inline constexpr std::uintptr_t WORLD_TO_SCREEN = 0x2202A0;
 // The camera ints are scene-fine (they sat within a tile of the player's sceneX<<7 / sceneY<<7) and
 // CAMERA_FINE_H read -852/-801/-849, i.e. the same negative-up height axis the leaf's second input
 // uses; the height the terrain sits at in that axis is NOT KNOWN (no heightmap offset is derived).
-inline constexpr std::uintptr_t CAMERA_FINE_X = 0x895D8;
-inline constexpr std::uintptr_t CAMERA_FINE_H = 0x895DC;
-inline constexpr std::uintptr_t CAMERA_FINE_Y = 0x895E0;
-inline constexpr std::uintptr_t VIEW_OBJ            = 0x90;  // -> view object
-inline constexpr std::uintptr_t VIEW_OBJ_SCALE_BASE = 0x10;  // the scales hang off view+0x10, so a
+inline std::uintptr_t CAMERA_FINE_X = 0x895D8;
+inline std::uintptr_t CAMERA_FINE_H = 0x895DC;
+inline std::uintptr_t CAMERA_FINE_Y = 0x895E0;
+inline std::uintptr_t VIEW_OBJ            = 0x90;  // -> view object
+inline std::uintptr_t VIEW_OBJ_SCALE_BASE = 0x10;  // the scales hang off view+0x10, so a
                                                              // scale address is this base + the VIEW_*
-inline constexpr std::uintptr_t VIEW_IN_W  = 0x20;   // x rescale denominator (a WIDTH: 1606 live)
-inline constexpr std::uintptr_t VIEW_IN_H  = 0x24;   // y rescale denominator (a HEIGHT: 900 live)
-inline constexpr std::uintptr_t VIEW_OUT_W = 0x5C;   // x rescale numerator   (a WIDTH: 1606 live)
-inline constexpr std::uintptr_t VIEW_OUT_H = 0x60;   // y rescale numerator   (a HEIGHT: 900 live)
+inline std::uintptr_t VIEW_IN_W  = 0x20;   // x rescale denominator (a WIDTH: 1606 live)
+inline std::uintptr_t VIEW_IN_H  = 0x24;   // y rescale denominator (a HEIGHT: 900 live)
+inline std::uintptr_t VIEW_OUT_W = 0x5C;   // x rescale numerator   (a WIDTH: 1606 live)
+inline std::uintptr_t VIEW_OUT_H = 0x60;   // y rescale numerator   (a HEIGHT: 900 live)
 
 // ---------------------------------------------------------------------------------------------------
 // FIELDS ON THE CLIENT OBJECT
@@ -144,8 +153,8 @@ inline constexpr std::uintptr_t VIEW_OUT_H = 0x60;   // y rescale numerator   (a
 // function (0x1400742c2) loads it a dozen times to run the scene draw passes. VERIFIED LIVE: every
 // scene read checked in the GE (SCENE_BASE_X/Y at +0x24/+0x28, the NPC uid array at +0xD0) went
 // through this pointer.
-inline constexpr std::uintptr_t SCENE            = 0xCA90;
-inline constexpr std::uintptr_t LOCAL_PLAYER_IDX = 0xCC5C;  // your own player handle
+inline std::uintptr_t SCENE            = 0xCA90;
+inline std::uintptr_t LOCAL_PLAYER_IDX = 0xCC5C;  // your own player handle
 
 // The player handle table: PLAYER_COUNT is how many entries PLAYER_IDS holds, and the ids sit inline
 // right after the count (hence array = count + 4). 0xFFFFFFFF = an empty slot.
@@ -160,8 +169,8 @@ inline constexpr std::uintptr_t LOCAL_PLAYER_IDX = 0xCC5C;  // your own player h
 // (FUN_1400562e0) builds the structure at 0xCCE0 (count first, ids inline right after), which is why
 // the array sits at count+4. VERIFIED LIVE in the GE: the registry walk enumerated exactly the uids
 // this array held, local player included.
-inline constexpr std::uintptr_t PLAYER_COUNT     = 0xCCE0;
-inline constexpr std::uintptr_t PLAYER_IDS       = 0xCCE4;
+inline std::uintptr_t PLAYER_COUNT     = 0xCCE0;
+inline std::uintptr_t PLAYER_IDS       = 0xCCE4;
 
 // Your stats. Three parallel int arrays of 25, one entry per skill, in the game's own skill order (see
 // Skill.java). "Effective" is the boosted/drained number you see in the top of the skill tab; "base" is
@@ -174,9 +183,9 @@ inline constexpr std::uintptr_t PLAYER_IDS       = 0xCCE4;
 // CONFIRMED UNCHANGED on client-240-6, statically: the client's own getStatEffectiveLevel /
 // getStatBaseLevel / getStatXP Lua bindings read exactly these three offsets (each also gates on a
 // nonzero dword at client+0x413F34 -- likely "stats loaded"; we do not depend on it).
-inline constexpr std::uintptr_t SKILL_EFFECTIVE = 0x3360;
-inline constexpr std::uintptr_t SKILL_BASE      = 0x33C4;
-inline constexpr std::uintptr_t SKILL_XP        = 0x3428;
+inline std::uintptr_t SKILL_EFFECTIVE = 0x3360;
+inline std::uintptr_t SKILL_BASE      = 0x33C4;
+inline std::uintptr_t SKILL_XP        = 0x3428;
 
 // Run energy. NOT DERIVED for client-240-6, and no better number is offered: this line was added on
 // 2026-08-10 (commit e03f6e7) while BUILD_ID was still the previous build's 0x64990, with no how-found
@@ -190,7 +199,7 @@ inline constexpr std::uintptr_t SKILL_XP        = 0x3428;
 // written from the varp/varbit transmit path. How to re-derive: find the code that raises that event
 // and read the client field it copies from, or hook-and-log -- read candidate client fields while
 // sprinting until one counts 0..10000.
-inline constexpr std::uintptr_t RUN_ENERGY = 0x34D0;  // SUSPECT: 0..10000 on the build it came from
+inline std::uintptr_t RUN_ENERGY = 0x34D0;  // SUSPECT: 0..10000 on the build it came from
 
 // The client's per-frame tick counter. DERIVED STATICALLY; the "+1 per 20ms" cadence is the OSRS frame
 // pace and was not re-proven statically -- what the binary shows is one bump per frame callback,
@@ -204,7 +213,7 @@ inline constexpr std::uintptr_t RUN_ENERGY = 0x34D0;  // SUSPECT: 0..10000 on th
 // current tick. It sits directly above GAME_STATE (0x2160), whose isLoggedIn leaf is quoted in that
 // entry. NOTE: the client's own getTickCount Lua binding reads client+0x31A8, NOT this -- do not
 // anchor a future re-derivation on getTickCount.
-inline constexpr std::uintptr_t CYCLE      = 0x2164;
+inline std::uintptr_t CYCLE      = 0x2164;
 
 // The client's own state machine, next to CYCLE. HOW FOUND (client-240-6): the isLoggedIn Lua leaf is
 // literally "load client global; cmpq $-1, 0x3328(%rax); cmpl $0x1e, 0x2160(%rax)" -- it compares this
@@ -212,7 +221,7 @@ inline constexpr std::uintptr_t CYCLE      = 0x2164;
 // Values seen compared against it: 1,2,5,6,10,11,20,25,30,40,45,1000; the Java client's numbering
 // (10=title, 20=logging-in, 25=loading, 30=logged-in) fits and 30 is what the field held while we stood
 // in the GE. VERIFIED LIVE: read 30 while logged in, and the login form held something else before.
-inline constexpr std::uintptr_t GAME_STATE = 0x2160;  // int32; 30 = logged in
+inline std::uintptr_t GAME_STATE = 0x2160;  // int32; 30 = logged in
 
 // The pending menu-action record -- what the game fills when you click a menu entry, and what its
 // packet sender reads back. Three ints on the client object plus a small state tail:
@@ -228,11 +237,11 @@ inline constexpr std::uintptr_t GAME_STATE = 0x2160;  // int32; 30 = logged in
 // tempting "scene x / scene y" reading of +0x90/+0x94 is WRONG -- +0x90 is a packed widget id (its high
 // half bounds-checks against the interface manager's group count) and +0x94 is an index, not an axis.
 // NOT VERIFIED LIVE (needs a hook-and-log against a real click before anything calls into it).
-inline constexpr std::uintptr_t PENDING_ACTION_PACKED_ID = 0x90;
-inline constexpr std::uintptr_t PENDING_ACTION_INDEX     = 0x94;
-inline constexpr std::uintptr_t PENDING_ACTION_TARGET    = 0x98;
-inline constexpr std::uintptr_t PENDING_ACTION_SEQ       = 0x9C;  // u16
-inline constexpr std::uintptr_t PENDING_ACTION_PENDING   = 0x9F;  // u8, 1 = action queued
+inline std::uintptr_t PENDING_ACTION_PACKED_ID = 0x90;
+inline std::uintptr_t PENDING_ACTION_INDEX     = 0x94;
+inline std::uintptr_t PENDING_ACTION_TARGET    = 0x98;
+inline std::uintptr_t PENDING_ACTION_SEQ       = 0x9C;  // u16
+inline std::uintptr_t PENDING_ACTION_PENDING   = 0x9F;  // u8, 1 = action queued
 
 // The world map object. HOW FOUND (client-240-6): the client's own getMapOrigin Lua leaf is
 // "mov rax,[rip+X] (the client global); mov rcx,[rax+0x49B8]; movsd xmm0,[rcx+0x54B8]". The object is
@@ -266,12 +275,12 @@ inline constexpr std::uintptr_t PENDING_ACTION_PENDING   = 0x9F;  // u8, 1 = act
 // ~floor(50*(P + Q/16)) using floats 0.0625f (0x140c4a568) and -50.0f (0x140c4ad1c) -- IF 50.0f is
 // fine-coord pixels per tile that implies 2.56 px/tile, but its input unit is unresolved. Do not ship
 // a zoom; do not guess one.
-inline constexpr std::uintptr_t WORLD_MAP              = 0x49B8;  // on the client object
-inline constexpr std::uintptr_t WM_ORIGIN_LEVEL        = 0x54B8;  // MapCoord on the world map object:
-inline constexpr std::uintptr_t WM_ORIGIN_X            = 0x54BC;  //   {level, x, z}, in world tiles
-inline constexpr std::uintptr_t WM_ORIGIN_Z            = 0x54C0;
-inline constexpr std::uintptr_t WM_CENTRE_X            = 0x54C4;  // int, map centre in 8-tile units
-inline constexpr std::uintptr_t WM_CENTRE_Z            = 0x54C8;  //   (init -1; centre = origin+48 / 8)
+inline std::uintptr_t WORLD_MAP              = 0x49B8;  // on the client object
+inline std::uintptr_t WM_ORIGIN_LEVEL        = 0x54B8;  // MapCoord on the world map object:
+inline std::uintptr_t WM_ORIGIN_X            = 0x54BC;  //   {level, x, z}, in world tiles
+inline std::uintptr_t WM_ORIGIN_Z            = 0x54C0;
+inline std::uintptr_t WM_CENTRE_X            = 0x54C4;  // int, map centre in 8-tile units
+inline std::uintptr_t WM_CENTRE_Z            = 0x54C8;  //   (init -1; centre = origin+48 / 8)
 
 // ---------------------------------------------------------------------------------------------------
 // VARPS (client config variables) -- a global, not a client-object field
@@ -282,14 +291,14 @@ inline constexpr std::uintptr_t WM_CENTRE_Z            = 0x54C8;  //   (init -1;
 // `mov rax, [rip+X]`, `movsxd rcx, edx`, `mov eax, [rax+rcx*4]`. That pointer cell is this offset.
 // The varbit decoder confirms it from the other side: it reads the same array (as a direct address,
 // imageBase+0x155C520 -- the cell statically points there) when shifting and masking.
-inline constexpr std::uintptr_t VARP_ARRAY_PTR = 0x155C508;
+inline std::uintptr_t VARP_ARRAY_PTR = 0x155C508;
 
 // The client's own varbit decoder, callable as `unsigned int getVarbit(int varbitId)`. It looks the
 // varbit definition up by id, then reads and shifts the varp array -- so it is ground truth and needs
 // no definition table on our side. We do NOT call it: its unknown-id path reads an uninitialised
 // definition struct, and one garbage mask index is one crash we do not get to debug. The shim decodes
 // varbits itself from the varp array plus resources/varbits.csv. Recorded so the option stays visible.
-inline constexpr std::uintptr_t GET_VARBIT = 0x5B51F0;
+inline std::uintptr_t GET_VARBIT = 0x5B51F0;
 
 // ---------------------------------------------------------------------------------------------------
 // ITEM CONTAINERS (inventory, bank, worn...) -- a global open-addressing-ish table
@@ -305,16 +314,16 @@ inline constexpr std::uintptr_t GET_VARBIT = 0x5B51F0;
 //   +0x20 ptr    quantities, first entry   ) same shape, parallel array
 //   +0x28 ptr    quantities, one past last )
 //   +0x38 ptr    next node in the bucket (0 ends the chain)
-inline constexpr std::uintptr_t CONTAINER_BUCKETS = 0x154C500;  // array of ptr, AT imageBase (not a ptr cell)
-inline constexpr std::uintptr_t CONTAINER_MASK    = 0x154C508;  // int bucket count; sentinel sits one past it
+inline std::uintptr_t CONTAINER_BUCKETS = 0x154C500;  // array of ptr, AT imageBase (not a ptr cell)
+inline std::uintptr_t CONTAINER_MASK    = 0x154C508;  // int bucket count; sentinel sits one past it
 
 // Fields on a container node, as listed above. Each pointer field holds the first/one-past-last
 // pointer of its array; the id and quantity arrays are parallel, 4 bytes per slot.
-inline constexpr std::uintptr_t CONTAINER_NODE_IDS      = 0x08;  // ptr field -> item ids, first entry
-inline constexpr std::uintptr_t CONTAINER_NODE_IDS_END  = 0x10;  // ptr field -> ids, one past last
-inline constexpr std::uintptr_t CONTAINER_NODE_QTYS     = 0x20;  // ptr field -> quantities, first entry
-inline constexpr std::uintptr_t CONTAINER_NODE_QTYS_END = 0x28;  // ptr field -> quantities, one past last
-inline constexpr std::uintptr_t CONTAINER_NODE_NEXT     = 0x38;  // ptr field -> next node in the bucket
+inline std::uintptr_t CONTAINER_NODE_IDS      = 0x08;  // ptr field -> item ids, first entry
+inline std::uintptr_t CONTAINER_NODE_IDS_END  = 0x10;  // ptr field -> ids, one past last
+inline std::uintptr_t CONTAINER_NODE_QTYS     = 0x20;  // ptr field -> quantities, first entry
+inline std::uintptr_t CONTAINER_NODE_QTYS_END = 0x28;  // ptr field -> quantities, one past last
+inline std::uintptr_t CONTAINER_NODE_NEXT     = 0x38;  // ptr field -> next node in the bucket
 
 // ---------------------------------------------------------------------------------------------------
 // THE ENTITY REGISTRY  (fields on the client object; players and NPCs live here, in separate tables)
@@ -352,9 +361,9 @@ inline constexpr std::uintptr_t CONTAINER_NODE_NEXT     = 0x38;  // ptr field ->
 // Exchange: the player table enumerated exactly the uids in PLAYER_IDS (local player included), the
 // NPC table exactly the 12 uids of scene+0xD0's array -- with sane scene coords, idle animations
 // (-1) and orientations in 256-step cardinal values.
-inline constexpr std::uintptr_t REGISTRY_MAP          = 0xC9C8;  // on the client object: the map object
-inline constexpr std::uintptr_t REGISTRY_GROUPS       = 0xC9E8;  // = map+0x20: group head array
-inline constexpr std::uintptr_t REGISTRY_GROUP_COUNT  = 0xC9F0;  // = map+0x28: group count (u64)
+inline std::uintptr_t REGISTRY_MAP          = 0xC9C8;  // on the client object: the map object
+inline std::uintptr_t REGISTRY_GROUPS       = 0xC9E8;  // = map+0x20: group head array
+inline std::uintptr_t REGISTRY_GROUP_COUNT  = 0xC9F0;  // = map+0x28: group count (u64)
 
 // The group key naming the CURRENT group. DERIVED STATICALLY, not confirmed live -- our walk
 // enumerates every group, so nothing in the shim reads it.
@@ -369,22 +378,22 @@ inline constexpr std::uintptr_t REGISTRY_GROUP_COUNT  = 0xC9F0;  // = map+0x28: 
 // *(client+SCENE) (+0xE8/+0xF0), while the walk we verified live went through client+REGISTRY_MAP
 // (+0x20/+0x28 on the map object); if the map object lives at scene+0xC8 the two are the same table,
 // but that is not settled statically. The key field itself is not in doubt.
-inline constexpr std::uintptr_t REGISTRY_GROUP_SEL    = 0xCC60;
+inline std::uintptr_t REGISTRY_GROUP_SEL    = 0xCC60;
 
-inline constexpr std::uintptr_t GROUP_TABLE        = 0x10;  // field on a group node: the table pair
-inline constexpr std::uintptr_t GROUP_NEXT         = 0x18;  // field on a group node
-inline constexpr std::uintptr_t PLAYER_BUCKETS     = 0x68;  // field on the table pair
-inline constexpr std::uintptr_t PLAYER_BUCKET_COUNT = 0x70;  // field on the table pair (u64)
-inline constexpr std::uintptr_t NPC_BUCKETS        = 0x98;  // field on the table pair
-inline constexpr std::uintptr_t NPC_BUCKET_COUNT   = 0xA0;  // field on the table pair (u64)
-inline constexpr std::uintptr_t NODE_UID           = 0x00;  // field on an entity node (u32)
-inline constexpr std::uintptr_t NODE_ENTITY        = 0x10;  // field on an entity node
-inline constexpr std::uintptr_t NODE_NEXT          = 0x18;  // field on an entity node
+inline std::uintptr_t GROUP_TABLE        = 0x10;  // field on a group node: the table pair
+inline std::uintptr_t GROUP_NEXT         = 0x18;  // field on a group node
+inline std::uintptr_t PLAYER_BUCKETS     = 0x68;  // field on the table pair
+inline std::uintptr_t PLAYER_BUCKET_COUNT = 0x70;  // field on the table pair (u64)
+inline std::uintptr_t NPC_BUCKETS        = 0x98;  // field on the table pair
+inline std::uintptr_t NPC_BUCKET_COUNT   = 0xA0;  // field on the table pair (u64)
+inline std::uintptr_t NODE_UID           = 0x00;  // field on an entity node (u32)
+inline std::uintptr_t NODE_ENTITY        = 0x10;  // field on an entity node
+inline std::uintptr_t NODE_NEXT          = 0x18;  // field on an entity node
 
 // The uid array of the NPCs in the current scene (count at SCENE_NPC_UID_COUNT), read by the client's
 // own getNpcIdAll binding. Kept as a cross-check of the registry walk, not used for enumeration.
-inline constexpr std::uintptr_t SCENE_NPC_UIDS      = 0xD0;  // field on the scene object: int[] of uids
-inline constexpr std::uintptr_t SCENE_NPC_UID_COUNT = 0xD8;  // field on the scene object
+inline std::uintptr_t SCENE_NPC_UIDS      = 0xD0;  // field on the scene object: int[] of uids
+inline std::uintptr_t SCENE_NPC_UID_COUNT = 0xD8;  // field on the scene object
 
 // ---------------------------------------------------------------------------------------------------
 // FIELDS ON THE SCENE OBJECT  ( *(clientObj + SCENE) )
@@ -397,17 +406,17 @@ inline constexpr std::uintptr_t SCENE_NPC_UID_COUNT = 0xD8;  // field on the sce
 // the game". Pinned LIVE under Wine while standing at the Grand Exchange: +0x1C/+0x20 hold the scene
 // size (104, 104) and +0x24/+0x28 hold (3112, 3440), the GE's world coordinates -- exactly what a
 // south-west corner in world tiles should read. VERIFIED LIVE.
-inline constexpr std::uintptr_t SCENE_BASE_X = 0x24;
-inline constexpr std::uintptr_t SCENE_BASE_Y = 0x28;
+inline std::uintptr_t SCENE_BASE_X = 0x24;
+inline std::uintptr_t SCENE_BASE_Y = 0x28;
 
 // ---------------------------------------------------------------------------------------------------
 // FIELDS ON AN ENTITY (a player or an NPC)
 // ---------------------------------------------------------------------------------------------------
-inline constexpr std::uintptr_t ENTITY_SCENE_X = 0x3F0;
-inline constexpr std::uintptr_t ENTITY_SCENE_Y = 0x418;
+inline std::uintptr_t ENTITY_SCENE_X = 0x3F0;
+inline std::uintptr_t ENTITY_SCENE_Y = 0x418;
 
 // The entity's RENDER position: fine units (128 per tile), three consecutive ints {height, x, y}.
-// HOW FOUND (client-240-6, live on Windows, logged in, 2026-09-05): the KEWL_LOG [proj] probe scanned
+// HOW FOUND (client-240-6, live on Windows, logged in, 2026-09-05): the OXC_LOG [proj] probe scanned
 // the local player's struct for ints within a tile of the trusted (ENTITY_SCENE_X<<7)+64 and
 // (ENTITY_SCENE_Y<<7)+64, and for plausible heights (-1500..-50). The only contiguous triple was
 //   +0x1F8 = -312   +0x1FC = 6336   +0x200 = 6720      at scene (49,52) -- x/y exactly the tile centre.
@@ -417,9 +426,9 @@ inline constexpr std::uintptr_t ENTITY_SCENE_Y = 0x418;
 // too low. VERIFIED LIVE at one spot on plane 0 only; NOT VERIFIED on slopes, stairs or while moving
 // (while walking the x/y here should interpolate between tiles -- if they stay at the centre they are
 // a tile-derived copy, which is still right for drawing).
-inline constexpr std::uintptr_t ENTITY_FINE_H = 0x1F8;
-inline constexpr std::uintptr_t ENTITY_FINE_X = 0x1FC;
-inline constexpr std::uintptr_t ENTITY_FINE_Y = 0x200;
+inline std::uintptr_t ENTITY_FINE_H = 0x1F8;
+inline std::uintptr_t ENTITY_FINE_X = 0x1FC;
+inline std::uintptr_t ENTITY_FINE_Y = 0x200;
 
 // Which floor an entity is standing on (0..3). NOT RE-DERIVED, and this build's decompile CONTRADICTS
 // the value. Provenance: added 2026-08-10 (commit e03f6e7) on the previous build with no note, never
@@ -433,14 +442,14 @@ inline constexpr std::uintptr_t ENTITY_FINE_Y = 0x200;
 // that verified coords/animation/orientation never checked the plane, so 0x420 was never confirmed.
 // Candidate replacement: 0x7CC -- verify live (climb a staircase/ladder and watch the field step
 // 0..3) before switching; do not flip it on this note alone.
-inline constexpr std::uintptr_t ENTITY_PLANE   = 0x420;  // SUSPECT: this build points at 0x7CC instead
+inline std::uintptr_t ENTITY_PLANE   = 0x420;  // SUSPECT: this build points at 0x7CC instead
 // The decompile's candidate, as a SEPARATE constant so 0x420 is not flipped on the note alone: the
 // `coord` binding (FUN_1403af050) and FUN_1400a06e0 above both read entity+0x7CC as the level.
 // Decompile-backed, NOT VERIFIED in-game (2026-09-05). game.hpp reads BOTH: 0x7CC when it is in
 // 0..3, else 0x420 when that is, else -1 -- so if 0x7CC is wrong nothing gets worse than before,
-// and the KEWL_LOG [proj] line prints raw420/raw7CC side by side for the staircase check. Once one
+// and the OXC_LOG [proj] line prints raw420/raw7CC side by side for the staircase check. Once one
 // of them is seen stepping 0..3 on stairs, collapse to a single read and retire the other.
-inline constexpr std::uintptr_t ENTITY_PLANE_COORD = 0x7CC;
+inline std::uintptr_t ENTITY_PLANE_COORD = 0x7CC;
 // The reader in game.hpp range-guards the result (0..3, else -1 = unknown) so at least obvious
 // garbage is not shipped as a plane; an in-range but wrong value cannot be caught from the number
 // alone, which is why the live staircase check above still has to happen before this is trusted.
@@ -454,7 +463,7 @@ inline constexpr std::uintptr_t ENTITY_PLANE_COORD = 0x7CC;
 // all, only a pointer to the shared definition every NPC of that kind shares. Players have no
 // definition here, so this reads as garbage for them -- check isPlayer first.
 // NOT re-verified on client-240-6 (the live walk confirmed coords/animation/orientation, not this).
-inline constexpr std::uintptr_t ENTITY_DEF_PTR = 0x730;
+inline std::uintptr_t ENTITY_DEF_PTR = 0x730;
 
 // Names. The client's string type ("NxtString", 24 bytes, used for every name) is:
 //   +0x00 char* heap data -- OR the first byte of a 23-byte inline buffer (SSO)
@@ -473,9 +482,9 @@ inline constexpr std::uintptr_t ENTITY_DEF_PTR = 0x730;
 //
 // VERIFIED LIVE in the GE: local player's name came back through +0x718, and every nearby NPC
 // ("Banker" x5, "Guard" x2, "Master smithing tutor") through def+0x8.
-inline constexpr std::uintptr_t ENTITY_NAME_OVERRIDE = 0x710;  // inline NxtString on the entity
-inline constexpr std::uintptr_t PLAYER_NAME_PTR      = 0x718;  // -> NxtString (players only)
-inline constexpr std::uintptr_t DEF_NAME             = 0x8;    // NxtString on the NPC definition
+inline std::uintptr_t ENTITY_NAME_OVERRIDE = 0x710;  // inline NxtString on the entity
+inline std::uintptr_t PLAYER_NAME_PTR      = 0x718;  // -> NxtString (players only)
+inline std::uintptr_t DEF_NAME             = 0x8;    // NxtString on the NPC definition
 
 // The widget/interface system. It is the classic rs2lib IfType (ctti string in the binary names
 // "jag::oldscape::rs2lib::IfType"), NOT NXT's lui system, and the classic OSRS id encoding survives:
@@ -499,30 +508,30 @@ inline constexpr std::uintptr_t DEF_NAME             = 0x8;    // NxtString on t
 // groups), and real strings came back through the text rule ("<col=808080>Chat-channel</col>",
 // "Membership: <col=ff0000>None</col>"). The colour fields were derived too but REFUTED in
 // adversarial review (registration carries no offsets for them) -- do not add them without re-deriving.
-inline constexpr std::uintptr_t IFACE_MANAGER       = 0x413BE8;  // on the client object
-inline constexpr std::uintptr_t IFACE_GROUP_COUNT   = 0x6600;    // u64, on the interface manager
-inline constexpr std::uintptr_t IFACE_GROUP_ARRAY   = 0x6608;    // -> 24-byte group entries
-inline constexpr std::uintptr_t IFACE_GROUP_ENTRY_STRIDE = 24;   // bytes per group entry
-inline constexpr std::uintptr_t IFACE_GROUP_ENTRY_COUNT  = 0x8;  // in the entry: u64 componentCount
-inline constexpr std::uintptr_t IFACE_GROUP_ENTRY_DATA   = 0x10; // in the entry: -> componentData
-inline constexpr std::uintptr_t IFACE_EMPTY_SENTINEL = 0x155C5F0;  // global; compare entry+8's
+inline std::uintptr_t IFACE_MANAGER       = 0x413BE8;  // on the client object
+inline std::uintptr_t IFACE_GROUP_COUNT   = 0x6600;    // u64, on the interface manager
+inline std::uintptr_t IFACE_GROUP_ARRAY   = 0x6608;    // -> 24-byte group entries
+inline std::uintptr_t IFACE_GROUP_ENTRY_STRIDE = 24;   // bytes per group entry
+inline std::uintptr_t IFACE_GROUP_ENTRY_COUNT  = 0x8;  // in the entry: u64 componentCount
+inline std::uintptr_t IFACE_GROUP_ENTRY_DATA   = 0x10; // in the entry: -> componentData
+inline std::uintptr_t IFACE_EMPTY_SENTINEL = 0x155C5F0;  // global; compare entry+8's
                                                                   // pointee against *(base+this+8)
 // A 2026-09-06 probe claimed these were wrong -- every component measuring 1x1 -- and that claim was
 // RETRACTED the same day: the probe's own walk read the 16-byte shared_ptr entry at +0 (the control
 // block) instead of +8 (the object), which widgetObj() has always done correctly. The rectangle block
 // below is not implicated; what a widget's x/y MEAN is still the open question (see the parent-offset
 // note in the Remaining limitations section of PROGRESS.md).
-inline constexpr std::uintptr_t IFTYPE_X            = 0x5C;   // int, relative to the parent
-inline constexpr std::uintptr_t IFTYPE_Y            = 0x60;
-inline constexpr std::uintptr_t IFTYPE_WIDTH        = 0x64;
-inline constexpr std::uintptr_t IFTYPE_HEIGHT       = 0x68;
-inline constexpr std::uintptr_t IFTYPE_HIDDEN       = 0x78;   // bool
-inline constexpr std::uintptr_t IFTYPE_CHILDREN_COUNT = 0xB50;  // u64
-inline constexpr std::uintptr_t IFTYPE_CHILDREN_DATA  = 0xB58;  // -> 16-byte shared_ptr entries
-inline constexpr std::uintptr_t IFTYPE_TEXT         = 0x158;  // inline-or-char* string; flag:
-inline constexpr std::uintptr_t IFTYPE_TEXT_FLAG    = 0x16F;  //   bit7 = heap, SSO len = 0x17-flag
-inline constexpr std::uintptr_t IFTYPE_TEXT2        = 0x170;
-inline constexpr std::uintptr_t IFTYPE_TEXT2_FLAG   = 0x187;
+inline std::uintptr_t IFTYPE_X            = 0x5C;   // int, relative to the parent
+inline std::uintptr_t IFTYPE_Y            = 0x60;
+inline std::uintptr_t IFTYPE_WIDTH        = 0x64;
+inline std::uintptr_t IFTYPE_HEIGHT       = 0x68;
+inline std::uintptr_t IFTYPE_HIDDEN       = 0x78;   // bool
+inline std::uintptr_t IFTYPE_CHILDREN_COUNT = 0xB50;  // u64
+inline std::uintptr_t IFTYPE_CHILDREN_DATA  = 0xB58;  // -> 16-byte shared_ptr entries
+inline std::uintptr_t IFTYPE_TEXT         = 0x158;  // inline-or-char* string; flag:
+inline std::uintptr_t IFTYPE_TEXT_FLAG    = 0x16F;  //   bit7 = heap, SSO len = 0x17-flag
+inline std::uintptr_t IFTYPE_TEXT2        = 0x170;
+inline std::uintptr_t IFTYPE_TEXT2_FLAG   = 0x187;
 
 // ---------------------------------------------------------------------------------------------------
 // THE PARENT LINK -- DERIVED AT RUNTIME ON PURPOSE, NOT A NUMBER HERE
@@ -536,7 +545,7 @@ inline constexpr std::uintptr_t IFTYPE_TEXT2_FLAG   = 0x187;
 // WHY THERE IS NO `IFTYPE_PARENT_ID = 0x...` LINE BELOW. Nobody has run a decompiler at this field on
 // client-240-6, and this project's rule is that a number in this file is EVIDENCE, not a hypothesis.
 // So game.hpp derives the offset live instead, with a whole-tree tally that only accepts an answer
-// which holds for EVERY component of EVERY loaded group (kk::scanWidgetTree). The acceptance rules,
+// which holds for EVERY component of EVERY loaded group (oxc::scanWidgetTree). The acceptance rules,
 // written down here because they are the derivation:
 //
 //   idOff         v == ((group << 16) | componentIndex) on every component examined. This field is not
@@ -581,23 +590,23 @@ inline constexpr std::uintptr_t IFTYPE_TEXT2_FLAG   = 0x187;
 // client's relativeX/relativeY), not the cache originals -- i.e. that the client has ALREADY applied
 // the position/size modes and left the result here. The evidence is in this file: the top-level groups
 // read canvas-sized 1054x784 live, and a canvas-sized width is a laid-out value, never a cache
-// constant. The runtime self-test in kk::widgetChainString states the same thing as a measurement
+// constant. The runtime self-test in oxc::widgetChainString states the same thing as a measurement
 // instead of an argument: a group ROOT must come out abs (0,0) at exactly the canvas size. If it does
 // not, these are cache originals, and the position/size MODE bytes and originalX/originalY have to be
 // derived and the client's alignment re-implemented -- a much bigger job than this one.
-inline constexpr std::uintptr_t IFTYPE_SCAN_SPAN = 0x400;  // struct prefix the tally reads per component
-inline constexpr int            IFTYPE_CHAIN_MAX = 16;     // depth cap on any parent walk
+inline std::uintptr_t IFTYPE_SCAN_SPAN = 0x400;  // struct prefix the tally reads per component
+inline int            IFTYPE_CHAIN_MAX = 16;     // depth cap on any parent walk
 
 // Both VERIFIED LIVE on client-240-6: every enumerated GE NPC read -1 at 0x4D8 while standing still
 // and a cardinal 0/512/1024/1536 at 0x3E0; coords at 0x3F0/0x418 match npcCoord's disasm exactly.
-inline constexpr std::uintptr_t ENTITY_ANIMATION   = 0x4D8;  // current animation id, -1 when idle
-inline constexpr std::uintptr_t ENTITY_ORIENTATION = 0x3E0;  // 0..2047, 0 = south, rising clockwise
+inline std::uintptr_t ENTITY_ANIMATION   = 0x4D8;  // current animation id, -1 when idle
+inline std::uintptr_t ENTITY_ORIENTATION = 0x3E0;  // 0..2047, 0 = south, rising clockwise
 
 // Combat level, on a PLAYER entity. NPCs keep theirs on the shared definition instead -- reading this
 // on an NPC live returned a pointer fragment (the high half of a heap address), never a level. On the
 // local player it read -1, so this offset is simply WRONG on client-240-6. NOT VERIFIED -- re-derive
 // from the client's combat-level Lua binding before trusting any number that comes out of here.
-inline constexpr std::uintptr_t PLAYER_COMBAT_LEVEL = 0x734;
+inline std::uintptr_t PLAYER_COMBAT_LEVEL = 0x734;
 
 // ---------------------------------------------------------------------------------------------------
 // THE LOGIN FORM'S FIELDS -- NOT VERIFIED
@@ -622,7 +631,7 @@ inline constexpr std::uintptr_t PLAYER_COMBAT_LEVEL = 0x734;
 // already holds either all zeroes or exactly the value being written. Until a live run shows the form
 // filling in by itself, treat this as a hypothesis. (It was one, and it was wrong -- see REFUTED below.)
 //
-// MIRRORED IN JAVA: kewl.plugins.autologin.FieldWriter.PASSWORD_DELTA. Nothing checks that the two
+// MIRRORED IN JAVA: oxclient.plugins.autologin.FieldWriter.PASSWORD_DELTA. Nothing checks that the two
 // agree -- there is no seam between a C++ constant and a Java one -- so move them together by hand.
 // REFUTED, 2026-09-06, by the probe run that followed: 508 was measured while the pair-gap classifier
 // read the wrong window (it started inside the password's own bytes whenever the password was longer
@@ -633,7 +642,7 @@ inline constexpr std::uintptr_t PLAYER_COMBAT_LEVEL = 0x734;
 // which is the designed outcome, not a failure. Left here, with its history, because the next attempt
 // should start by knowing this one was wrong; the direct-write setting stays off until a probe finds a
 // pair whose gap is really binary and whose write really changes the form.
-inline constexpr std::int32_t LOGIN_PASSWORD_DELTA = 508;
+inline std::int32_t LOGIN_PASSWORD_DELTA = 508;
 
 // ---------------------------------------------------------------------------------------------------
 // MENU OPCODES
@@ -647,15 +656,15 @@ inline constexpr std::int32_t LOGIN_PASSWORD_DELTA = 508;
 // 0 and nothing has been hooked yet (see the DO_ACTION block above for the candidate functions a hook
 // run should start from), so treat every one of them as unverified until that run happens. Do not
 // guess them from a list you found somewhere -- they are per-build and they do get shuffled.
-inline constexpr int OPLOC1 = 3;   // scenery, first option: Chop down / Mine / Open / Climb...
+inline int OPLOC1 = 3;   // scenery, first option: Chop down / Mine / Open / Climb...
 
 // NPC options one through five. Attack is normally the first, but not always -- Talk-to is first on a
 // shopkeeper -- so a bot that always sends OPNPC1 will happily talk to a cow.
-inline constexpr int OPNPC1 = 9;
-inline constexpr int OPNPC2 = 10;
-inline constexpr int OPNPC3 = 11;
-inline constexpr int OPNPC4 = 12;
-inline constexpr int OPNPC5 = 13;
+inline int OPNPC1 = 9;
+inline int OPNPC2 = 10;
+inline int OPNPC3 = 11;
+inline int OPNPC4 = 12;
+inline int OPNPC5 = 13;
 
 // Walk to a tile. THIRTY-ONE, not twenty-three.
 //
@@ -663,6 +672,6 @@ inline constexpr int OPNPC5 = 13;
 // give it through the viewport ratio before storing them, so feeding it scene tiles walks you to a
 // place that has nothing to do with where you asked. This one takes scene tiles directly. If your
 // character walks somewhere baffling, this is the first thing to check.
-inline constexpr int OP_WALK = 31;
+inline int OP_WALK = 31;
 
-}  // namespace kk::off
+}  // namespace oxc::off

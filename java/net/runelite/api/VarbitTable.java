@@ -1,4 +1,4 @@
-// A slice of the OSRS varbit definition table: the ids KewlKlient actually reads.
+// A slice of the OSRS varbit definition table: the ids OxClient actually reads.
 //
 // Generated from the varbit/varp definition archives of the OSRS cache (rev 240,
 // cache 2686 of 2026-09-02, via archive.openrs2.org as dumped by github.com/Joshua-F/osrs-dumps),

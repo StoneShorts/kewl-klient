@@ -99,7 +99,7 @@ public class Widget
 	 * <p>This method used to be the single sentence this whole piece of work existed to retire: "no
 	 * parent-pointer offset is derived and a packed id cannot be walked upwards", so it handed back a
 	 * parent-relative pair dressed as a canvas position and every map overlay either refused or drew
-	 * in the wrong corner. {@code kewl.Natives.widgetAbs} now takes RuneLite's own sum -- the
+	 * in the wrong corner. {@code oxclient.Natives.widgetAbs} now takes RuneLite's own sum -- the
 	 * component's x/y plus every ancestor's -- through a parent link derived live from the widget tree
 	 * itself, and {@link net.runelite.api.ClientState} sets {@link #isCanvasAbsolute()} when that walk
 	 * reached a root.</p>

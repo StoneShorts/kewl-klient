@@ -1,4 +1,4 @@
-# KewlKlient ImGui Migration Progress
+# 0xClient ImGui Migration Progress
 
 Checked means: implemented, and verified (compiled / tested / probed offline, or live under Wine when
 the section says so). Unchecked means not started or partial -- say which in the item.
@@ -10,7 +10,7 @@ the last recorded run (`build/test-results/test/*.xml`, 2026-09-06):
   (2026-09-07, counted from `build/test-results/test/*.xml`). It was 524 before the widget-geometry,
   map-overlay, walker, menu-probe and panel-layout work of 2026-09-07, 402 across 40 classes on
   2026-09-06, and 332 across 30 classes on 2026-09-05.
-- `sh tools/wine-setup.sh` -- zero errors (jar + kewlklient.dll + KewlKlient.exe into build/wine-dist/).
+- `sh tools/wine-setup.sh` -- zero errors (jar + 0xclient.dll + 0xClient.exe into build/wine-dist/).
 - `sh tools/launcher-smoke.sh --no-live` -- "offline strip: OK -- ImGui panel renders under Wine"
   (1600x900 frame, clear colour present, 54 rail-accent pixels, 134 toggle-ON pixels).
 - The bridge round-trip probe (`tools/bridge-roundtrip-probe.cpp`, run under Wine against the real
@@ -19,42 +19,42 @@ the last recorded run (`build/test-results/test/*.xml`, 2026-09-06):
 - The LIVE GAME TEST is the human's; see docs/testing.md's checklist.
 
 ## Architecture audit
-- [x] Plugin inventory mapped: `KewlKlient.PLUGINS` (5 entries: PlayerVisuals, NpcVisuals,
+- [x] Plugin inventory mapped: `OxClient.PLUGINS` (5 entries: PlayerVisuals, NpcVisuals,
       Woodcutter, RlitePlugin("Shortest Path"), RlitePlugin("Test Rlite")); the list is the registry,
       edit records name plugins by index into it.
-- [x] Plugin-shaped-but-not-kewl-Plugin classes identified: `shortestpath.ShortestPathPlugin` and
-      `kewl.rl.TestRlite` extend the shim `net.runelite.client.plugins.Plugin`, driven by
-      `kewl.rl.RlitePlugin` adapters.
-- [x] Persistence audit: **none exists**. `kewl.config.Setting`/`Config` are memory-only; no file,
-      `Preferences`, or registry writes anywhere in `kewl` (the only `java.io` use is Theme's font
-      load). `kewlklient.ini` is build-generated DLL config (JDK path), not plugin state.
-- [x] `kewl.ui.Profiles` audit: real save/load/delete semantics over an in-memory
+- [x] Plugin-shaped-but-not-0xClient-Plugin classes identified: `shortestpath.ShortestPathPlugin` and
+      `oxclient.rl.TestRlite` extend the shim `net.runelite.client.plugins.Plugin`, driven by
+      `oxclient.rl.RlitePlugin` adapters.
+- [x] Persistence audit: **none exists**. `oxclient.config.Setting`/`Config` are memory-only; no file,
+      `Preferences`, or registry writes anywhere in `oxclient` (the only `java.io` use is Theme's font
+      load). `0xclient.ini` is build-generated DLL config (JDK path), not plugin state.
+- [x] `oxclient.ui.Profiles` audit: real save/load/delete semantics over an in-memory
       `Map<name, Map<pluginName, Map<key, value>>>`, generated names, keyed by plugin *name*; no
       rename, duplicate, active-profile concept, or storage. No `ProfileManager` exists; the seam for
       one is exactly this class (plus `SettingDefaults` for per-profile defaults).
-- [x] `kewl.ui.SettingDefaults` role: captures declared defaults at start-up (`SidePanel.setPlugins`)
+- [x] `oxclient.ui.SettingDefaults` role: captures declared defaults at start-up (`SidePanel.setPlugins`)
       into an `IdentityHashMap`; backs the config panel's Reset buttons; resets go through
       `Setting.set` so listeners fire. No bridge edit kind reaches it from the launcher yet.
-- [x] Lifecycle audit: no `PluginManager`; `KewlKlient` owns the registry, tick loop, F-key hotkeys
+- [x] Lifecycle audit: no `PluginManager`; `0xClient` owns the registry, tick loop, F-key hotkeys
       and default-enable (hardcoded `instanceof` in `start()`); per-plugin `tick()`/`render()` and
       `onEnable`/`onDisable` are individually try/caught; `setEnabled` is final + idempotent and
       bumps `Plugin.enableVersion`; all edits queue through `Plugin.later` onto the frame thread. A
       plugin that throws every frame keeps throwing every frame -- no suspension.
-- [x] Metadata audit: kewl plugins expose name/description/hotkey/status only. No id, version, tags,
+- [x] Metadata audit: 0xClient plugins expose name/description/hotkey/status only. No id, version, tags,
       author, icon, pinned, hidden, external/built-in flag. `@PluginDescriptor` exists on the wrapped
       RuneLite plugins but is read nowhere at runtime (panel names come from `RlitePlugin`'s
       constructor args, so the metadata is duplicated by hand).
-- [x] PanelBridge v1 format documented and pinned by `java-test/kewl/PanelBridgeTest` (9 tests: full
+- [x] PanelBridge v1 format documented and pinned by `java-test/oxclient/PanelBridgeTest` (9 tests: full
       decode against the real registry, kind table, 8-option cap, edit contract, modelRevision
       semantics, debugLines shape).
-- [x] Swing audit: exactly one Swing file, `kewl/ui/Sidebar.java` -- dead code, no production
+- [x] Swing audit: exactly one Swing file, `oxclient/ui/Sidebar.java` -- dead code, no production
       references; one live test (`ConfigDefaultsTest`) reflects into it to prove 79 Shortest Path
       settings survive panel construction, so removing Sidebar means rewiring that test.
       `java/com` and `java/javax` are annotation shims only. All other `java.awt` use is Java2D
       overlays (keep).
 - [x] Shortest Path audit: `RlitePlugin` builds the object graph eagerly via the hand-rolled
-      `kewl.rl.Injector`; config proxied by the `ConfigManager` shim onto the adapter's `Config`
-      (84 `@ConfigItem`s / 5 hidden / 7 sections + the kewl-native `autoWalk`); pathfinding runs on
+      `oxclient.rl.Injector`; config proxied by the `ConfigManager` shim onto the adapter's `Config`
+      (84 `@ConfigItem`s / 5 hidden / 7 sections + the oxc-native `autoWalk`); pathfinding runs on
       its own single-thread executor, results marshalled to the frame thread via `ClientThread`;
       bespoke UI state inventoried (cached draw/colour fields, static `configOverride`, marker,
       minimap clips, shift-clear key listener, `MenuPopup` fallback menu, `AutoWalk` driver).
@@ -75,20 +75,20 @@ the last recorded run (`build/test-results/test/*.xml`, 2026-09-06):
       (2026-09-05)
 - [x] The v2 model parser is bounds-checked: counts outside the caps and an activeProfileIndex
       outside -1..profileCount-1 are rejected rather than read off the end (2026-09-05)
-- [x] `KEWL_FAKE_PANEL` builds a synthetic v2 region (pins, three profiles, hub entries exercising
+- [x] `OXC_FAKE_PANEL` builds a synthetic v2 region (pins, three profiles, hub entries exercising
       every button state) so the whole sidebar is probeable with no game and no JVM (2026-09-05)
 - [x] Live: spawn + inject + embed against the real client -- on WINDOWS, against client-240-6
       fetched from the CDN, logged in. The strip carried the real registry through the bridge, the
       Shortest Path config view rendered every section, and edits made in it landed in
-      `~/.kewlklient/profiles/*/config.json`. Four bugs the Wine pass could not see, all fixed
+      `~/.0xclient/profiles/*/config.json`. Four bugs the Wine pass could not see, all fixed
       (2026-09-05, see "Live on Windows" below)
-- [x] `KewlKlient.exe --launch` / `KEWL_AUTOSTART=1` presses "+ client" itself (same startLaunch
+- [x] `0xClient.exe --launch` / `OXC_AUTOSTART=1` presses "+ client" itself (same startLaunch
       path, nothing bypassed) so a terminal or a script can go straight to the game (2026-09-05)
 
 ## Native sidebar
 - [x] `launcher/panel_ui.hpp`: the full ImGui strip -- plugins, config, profiles, hub, debug -- plus
       the navigation stack, keyboard focus hooks, and optimistic echo of edits (2026-09-05)
-- [x] Every tab probed offline under Wine via `KEWL_FAKE_TAB` dumps (PAM -> PNG, inspected):
+- [x] Every tab probed offline under Wine via `OXC_FAKE_TAB` dumps (PAM -> PNG, inspected):
       plugins rows with pin stars and toggles, profiles (active profile's orange edge), hub
       (warning/search/refresh/install/update/busy/remove states), debug lines, config controls
       (sections, combo, colour, text, slider, steppers, per-setting and per-plugin Reset) (2026-09-05)
@@ -105,7 +105,7 @@ the last recorded run (`build/test-results/test/*.xml`, 2026-09-06):
       routed through its owning manager via `Plugin.later` -- signatures match `client/jvm.hpp`
 
 ## Plugin manager
-- [x] `kewl.plugin.PluginManager`: the single owner of enable/disable transitions, exception
+- [x] `oxclient.plugin.PluginManager`: the single owner of enable/disable transitions, exception
       isolation (a hook that throws leaves the plugin off and surfaces as a failure, never kills the
       tick loop), idempotence, register/unregister, clean shutdown (2026-09-05)
 - [x] `Plugin` metadata defaults (`id`, `version`, `author`, `tags`) derived from the name; existing
@@ -116,14 +116,14 @@ the last recorded run (`build/test-results/test/*.xml`, 2026-09-06):
       writes are debounced 750ms on one IO thread, atomic, and store only non-default values (2026-09-05)
 
 ## Profiles
-- [x] `kewl.profile.ProfileManager` + `JsonStore`: per-profile enabled/settings under
+- [x] `oxclient.profile.ProfileManager` + `JsonStore`: per-profile enabled/settings under
       `<dataDir>/profiles/<id>/config.json`, index.json for the list/active/pins, corruption
       quarantined to `.bad` and fallen back from (2026-09-05)
 - [x] A profile is a complete statement: silence means off and code defaults. Pins are global.
       Migration is honest: nothing persisted before (`docs/architecture-before.md`), so first run
       creates one empty "default" profile (2026-09-05)
 - [x] The Java2D Profiles tab now reads and writes the same store instead of its session-only map
-      (`kewl.ui.Profiles` deleted) (2026-09-05)
+      (`oxclient.ui.Profiles` deleted) (2026-09-05)
 
 ## Plugin list
 - [x] Pins, per-plugin toggles, search filter, F-key hints; a pin rides edit kind 6 and lands in
@@ -136,14 +136,14 @@ the last recorded run (`build/test-results/test/*.xml`, 2026-09-06):
       (2026-09-05)
 
 ## Plugin Hub
-- [x] `kewl.plugin.hub`: `HubConfig` (manifest URL from `hub=` in kewlklient.ini / `KEWL_HUB` /
-      `kewl.hub.url`; empty means "no hub configured", shown as an error state, not silence),
+- [x] `oxclient.plugin.hub`: `HubConfig` (manifest URL from `hub=` in 0xclient.ini / `OXC_HUB` /
+      `oxclient.hub.url`; empty means "no hub configured", shown as an error state, not silence),
       `HubEntry` manifest validation (id, version, https/file artifact, SHA-256 required),
       `HubLoader` (child-first URLClassLoader over the shim; refuses a mainClass that is not a
-      `kewl.Plugin`), `Hub` (async fetch/download/verify on one worker, installed.json, remove and
+      `oxclient.Plugin`), `Hub` (async fetch/download/verify on one worker, installed.json, remove and
       update) (2026-09-05)
 - [x] Documented honestly in `HubLoader`: the classloader is isolation for convenience, NOT a
-      security sandbox -- kewl.* and the shim are identity classes by design (2026-09-05)
+      security sandbox -- 0xClient.* and the shim are identity classes by design (2026-09-05)
 
 ## ShortestPath
 - [x] Its proxied settings surface in the native config panel through the bridge, LIVE on Windows
@@ -172,17 +172,17 @@ on, and the CDN's production release that day. What the Wine pass had not been a
       it read the wide name as bytes. The mapping existed, the mutex did not, and the launcher
       (which requires both) never connected. Proven with OpenFileMappingW/OpenMutexW from a third
       process. Fixed: `std::wstring` concatenation, no wide printf anywhere in the names.
-- [x] **No DLL diagnostics reached KEWL_LOG.** `freopen(log, "a", stdout)` in a DLL loaded into a
+- [x] **No DLL diagnostics reached OXC_LOG.** `freopen(log, "a", stdout)` in a DLL loaded into a
       console-less GUI process redirected nothing usable; two runs produced a JVM and a written
       profile store and not one DLL line. Fixed: `client/log.hpp` -- a kernel handle opened with
-      FILE_APPEND_DATA, `kk::logf` WriteFile()s to it, and the same handle is installed as the
+      FILE_APPEND_DATA, `oxc::logf` WriteFile()s to it, and the same handle is installed as the
       process's STD_OUTPUT/STD_ERROR before the JVM starts so Java's System.out/err land in the
       same file. `-XX:ErrorFile` puts a JVM crash report next to it. The launcher now deletes and
       re-opens the log in append mode too (its "w" stream had been overwriting the DLL's lines).
 - [x] **BUILD_ID was documented as a refusal and enforced nowhere.** offsets.hpp now carries
       `BUILD_VERSION = L"240-6"` (the PE FileVersion string the client states about itself, checkable
       before any game byte is read); `dllmain.cpp` reads the host exe's version resource and refuses
-      to start Java on a mismatch, rendering the reason natively. `KEWL_SKIP_BUILD_CHECK=1` overrides
+      to start Java on a mismatch, rendering the reason natively. `OXC_SKIP_BUILD_CHECK=1` overrides
       for the deob hook-and-log workflow, loudly.
 - [x] The launcher's bridge note now says WHICH step of `Bridge::open` failed (no mapping / mapping
       but no mutex / view / size / header) instead of "the DLL never created it".
@@ -222,7 +222,7 @@ cam=(9167,-852,8641) view=(900/1606, 900/1606)` and two more). Not run in-game y
       centre at five candidate heights next to the cursor. KNOWN LIMITATION until a heightmap reader
       exists.
 - [x] **Entity kind was decided by a per-entity PLAYER_IDS scan**, (#entities x #players) VirtualQuery
-      reads per frame, and wrong under a uid shared between the player and NPC tables. `kk::Entity`
+      reads per frame, and wrong under a uid shared between the player and NPC tables. `oxc::Entity`
       now carries `player`, set by the walker from which table the node was in; `isPlayerUid` is gone;
       `localPlayer` matches the player table only, `findEntity(uid, player)` / `interactNpc` match
       by kind; `entityName` is `(IZ)` (uid, isPlayer) end to end (Natives.java, Entity.java --
@@ -239,7 +239,7 @@ cam=(9167,-852,8641) view=(900/1606, 900/1606)` and two more). Not run in-game y
 - [x] **npcTypeId is range-guarded** (0..0xFFFF else -1): def+0x0 is NOT re-verified on 240-6, and a
       pointer fragment would otherwise ship as a huge id. The probe prints the nearest NPC's
       `uid def rawId id name` so the layout can be checked against a known NPC.
-- [ ] **For the user to confirm in-game (KEWL_LOG set, standing still):** (1) the `[proj] ... centre
+- [ ] **For the user to confirm in-game (OXC_LOG set, standing still):** (1) the `[proj] ... centre
       -> (x,y)` point should sit at your character's feet and `view=` should read `x W/W y H/H`; if the
       point is off, say by how much. (2) Hover your own feet and read `h-sweep`: the `hN` whose y
       matches `mouse=` is the ground height there -- report it, and whether it changes as you walk.
@@ -247,14 +247,14 @@ cam=(9167,-852,8641) view=(900/1606, 900/1606)` and two more). Not run in-game y
       switch). (4) Near a Banker, `nearest npc` should read a small `id` and `name="Banker"`; NPC
       labels in the overlay should no longer be blank. (5) In a crowd, boxes should keep up with
       moving entities (the PLAYER_IDS scan is gone).
-- [x] Swing is GONE (2026-09-07). `kewl/ui/Sidebar.java` deleted; `grep -rl javax.swing java/`
+- [x] Swing is GONE (2026-09-07). `oxclient/ui/Sidebar.java` deleted; `grep -rl javax.swing java/`
       now matches nothing. The two tests that reflected into it (`ConfigDefaultsTest`,
       `IndicatorsConfigTest`) were rewired first, onto
       `java-test/net/runelite/client/config/ConfigPanelInvariants.java`, which asserts what the old
       Swing constructor enforced only by accident: an INT setting's value lies inside its own
       min..max, an ENUM's value is one of its options, and every setting carries the key, label,
       description and typed value a panel row reads. That is the actual regression -- an
-      out-of-range `@ConfigItem` default threw in `JSlider`, `KewlKlient` swallowed it, and the user
+      out-of-range `@ConfigItem` default threw in `JSlider`, `0xClient` swallowed it, and the user
       got no control panel -- stated as an invariant instead of as a constructor that happens to
       throw. The live serialisation path is covered separately by `PanelBridgeTest`, which decodes a
       real `PanelBridge.snapshot()` over the real registry, so every Shortest Path setting still
@@ -280,7 +280,7 @@ the projection/heightmap items above are the other half of "nothing on the path"
       `LocalPoint.fromWorld` could never match -1: target accepted, no tiles, no minimap marker.
       The RuneLite shim's `WorldView.getPlane()` now returns 0 for -1 (javadoc records why the old
       "never match -1" contract bought nothing without a heightmap), and `Player.getWorldLocation`
-      takes its plane from the WorldView so a WorldPoint never carries -1. `kewl.rl.AutoWalk` still
+      takes its plane from the WorldView so a WorldPoint never carries -1. `oxclient.rl.AutoWalk` still
       reads `Local.plane()` raw and keeps its own -1 handling (unfiltered walk over a plane-0 path
       is self-consistent). RlitePlugin logs `[shortestpath] plane unreadable (-1 from the client),
       assuming ground floor` once per login when it fires. Cost: upstairs with an unreadable plane,
@@ -290,7 +290,7 @@ the projection/heightmap items above are the other half of "nothing on the path"
       104; the scene is 0..103 (`Constants.SCENE_SIZE`, `WorldPoint.isInScene`). Now `>= 104`; the
       "0..104" comments in offsets.hpp / game.hpp / Entity.java say 0..103. Cosmetic -- it did not
       cause the live symptom -- but `WorldView.contains` now agrees with the shim's own isInScene.
-- [ ] **For the user to confirm in-game (KEWL_LOG set):** (1) the strip's "you: x, y plane N" and
+- [ ] **For the user to confirm in-game (OXC_LOG set):** (1) the strip's "you: x, y plane N" and
       the `[proj] ... plane=P raw420=A raw7CC=B` line on the ground floor -- is P 0, and which of
       A/B is 0? If the log shows `[shortestpath] plane unreadable`, both reads were out of 0..3.
       (2) Climb a staircase: the one of `raw420`/`raw7CC` that steps 0->1 is the plane; then
@@ -300,7 +300,7 @@ the projection/heightmap items above are the other half of "nothing on the path"
       tiles are still missing entirely, which would point at the projection rather than the plane.
 - Skipped, recorded: the alternative stopgap "refuse to target when getPlane() < 0 and show a
       status string" (sp-shim-1 step 3) -- it conflicts with the normalisation above, would have
-      coupled the vendored plugin to kewl.rl, and `RlitePlugin.status()` is overwritten by the
+      coupled the vendored plugin to oxclient.rl, and `RlitePlugin.status()` is overwritten by the
       auto-walk tick every frame so the string would not have shown. The heightmap reader
       (Perspective.getTileHeight) still returns 0: no offset exists and none was guessed.
 
@@ -312,7 +312,7 @@ The RuneLite shim now exposes NPCs and other players, not only the local player.
 compiles, passes the unit tests (350 green, 18 new), and has NOT been seen in-game; the `Test Actors`
 plugin exists to make the first live run diagnosable.
 
-- [x] `net.runelite.api.Actor` (abstract, over kewl's per-frame primitives), `NPC`, `NPCComposition`,
+- [x] `net.runelite.api.Actor` (abstract, over 0xClient's per-frame primitives), `NPC`, `NPCComposition`,
       `Player extends Actor` (local player via `Supplier<Local>`, others via `Entity` snapshots),
       `IndexedObjectSet`, `ActorTable` (shim-only: stable identity per (kind, uid), re-pointed each
       frame; a uid reused with a different type id becomes a new object).
@@ -321,7 +321,7 @@ plugin exists to make the first live run diagnosable.
       `convexHull` (monotone chain) and `approximateHull` (a prism's 8 projected corners), and
       `OverlayUtil` ported. `getCanvasTilePoly(client, lp, int)`'s third parameter is now upstream's
       zOffset (it was named plane and ignored).
-- [x] `NpcSpawned/NpcDespawned/PlayerSpawned/PlayerDespawned` from `kewl.rl.Events.fireActorChanges`,
+- [x] `NpcSpawned/NpcDespawned/PlayerSpawned/PlayerDespawned` from `oxclient.rl.Events.fireActorChanges`,
       per hosted plugin, before `GameTick`; one `[actors] first frame: N npcs, M players, K names
       non-empty` line per login.
 - [x] Local `Player.getLocalLocation()` switched from the tile centre to the fine render position
@@ -349,12 +349,12 @@ plugin exists to make the first live run diagnosable.
 
 ### NPC / Player Indicators ported (2026-09-05, code-level; not run in-game AT THE TIME)
 
-> Superseded 2026-09-06: both are now DEFAULT-ON (`KewlKlient.defaultOn`) after the live pass below;
+> Superseded 2026-09-06: both are now DEFAULT-ON (`OxClient.defaultOn`) after the live pass below;
 > only the name-list path is still unverified.
 
 RuneLite's NPC Indicators (`net.runelite.client.plugins.npchighlight`) and Player Indicators
 (`net.runelite.client.plugins.playerindicators`) ported source-shaped onto the actor surface above,
-registered as two opt-in `RlitePlugin` lines (after Shortest Path, before the smoke tests; kewl's
+registered as two opt-in `RlitePlugin` lines (after Shortest Path, before the smoke tests; 0xClient's
 own `NpcVisuals`/`PlayerVisuals` stay default-on). Compiles, `gradlew dist` passes, unit tests green
 (WildcardMatcher, list parsing / id matching / (id,name) cache, both configs through the real
 ConfigManager + Sidebar). Nothing has been seen in-game.
@@ -387,7 +387,7 @@ ConfigManager + Sidebar). Nothing has been seen in-game.
   Enabled is a one-token change in `PlayerIndicatorsConfig.highlightOthers`.
 - [ ] **Live checks** (enable the plugin, type e.g. `Goblin, 3080` into `NPCs to highlight`; the
       status line reads `N npcs · K highlighted · names ok/empty · P patterns`):
-      - `[npchighlight] startUp: ...` in KEWL_LOG with the pattern counts; `[npchighlight] all N NPC
+      - `[npchighlight] startUp: ...` in OXC_LOG with the pattern counts; `[npchighlight] all N NPC
         names empty (DEF_NAME pending)` after ~10 ticks is the expected line until DEF_NAME lands
         (id entries still highlight); `[npchighlight] NPC names readable: '<name>' id <id>` is the
         line to look for after.
@@ -409,7 +409,7 @@ ConfigManager + Sidebar). Nothing has been seen in-game.
 The first thing the DLL pushes INTO the game. Design and reasoning in the "Input INTO the game"
 section of `client/jvm.hpp`; user-facing notes in README "Autologin". Nothing here has been seen
 in-game; the plugin is built to report its own state so the first live run can be diagnosed from
-KEWL_LOG alone.
+OXC_LOG alone.
 
 - [x] Four natives, all `PostMessageW` to NXT's `JagRenderView` child, no `SendInput` anywhere:
       `postChar` (WM_CHAR -- text never goes as a key-down, because the game's own TranslateMessage
@@ -420,15 +420,15 @@ KEWL_LOG alone.
       client-240-6: TranslateMessage/DispatchMessage/GetMessage/PeekMessage present, no raw input,
       ToUnicode, GetKeyboardState or SendInput. `[input] target %p class=%ls` is logged once per
       target change.
-- [x] `kewl.api.Input` wrapper (no `typeText` on purpose -- callers pace across frames).
-- [x] `kewl.plugins.autologin`: `Credentials` (raw-line reader of `~/.kewlklient/autologin.properties`,
+- [x] `oxclient.api.Input` wrapper (no `typeText` on purpose -- callers pace across frames).
+- [x] `oxclient.plugins.autologin`: `Credentials` (raw-line reader of `~/.0xclient/autologin.properties`,
       presence flags only ever printed, values leave only via `armInto` into the sequence's character
       queue), `InputSink` (the test seam), `LoginSequence` (pure state machine: settle -> optional
       clicks -> backspaces -> username -> Tab -> password -> Enter -> await the state leaving the login
       value; one slot per keyDelayMs, key/click = two slots; doubling back-off, maxAttempts, maxRejects,
       stop on raw 11; IDLE after a logout until loginNow(), or re-arm with `reloginAfterDisconnect`;
       NO_CREDENTIALS re-reads the file every 5 s).
-- [x] `kewl.plugins.AutoLogin` (plain `kewl.Plugin`, F7, last in the registry, NOT in defaultOn()):
+- [x] `oxclient.plugins.AutoLogin` (plain `oxclient.Plugin`, F7, last in the registry, NOT in defaultOn()):
       reloads the file per attempt, logs flags and key/click counts only (never a character or
       step count -- a length is a fact about the password), catches a missing native once
       (`input natives missing -- rebuild the DLL`), draws the click-offset crosshairs and a status
@@ -504,7 +504,7 @@ KEWL_LOG alone.
       itself, username pre-filled, "Please enter your password", no welcome box. The script still
       clicked Existing User (not a button there), typed into whatever had focus, submitted an empty
       password field twice and stopped with `rejected 2 times`.
-      - New `kewl.plugins.autologin.LoginScreen`: WELCOME / FORM / DISCONNECT / REJECTION / UNKNOWN,
+      - New `oxclient.plugins.autologin.LoginScreen`: WELCOME / FORM / DISCONNECT / REJECTION / UNKNOWN,
         with exactly two decisions on it -- `clicksExistingUser()` and `focusesPasswordField()`.
         Those are the only two ways the scripts differ.
       - `LoginSequence.noteScreen(int[] loadedGroups, boolean verbose)` takes the client's own
@@ -512,7 +512,7 @@ KEWL_LOG alone.
         dedupes them into one comparable string (a loaded game -- ~970 groups -- collapses to
         `many:N`), `LoginScreen.KNOWN` maps a fingerprint to a screen, and it **ships EMPTY**: no id
         has been confirmed against a real screen and a wrong entry would break the cold start that
-        works. Each DISTINCT fingerprint is logged once under KEWL_LOG with what was believed, which
+        works. Each DISTINCT fingerprint is logged once under OXC_LOG with what was believed, which
         is exactly the evidence the next run has to produce. Widget POSITIONS are deliberately not
         used (offsets.hpp: single-id x/y are not parent-accumulated).
       - Fallback for an unknown fingerprint, i.e. all of them today: `LoginSequence.provenance()` --
@@ -526,7 +526,7 @@ KEWL_LOG alone.
       - Panel: a `screen` line, and the crosshairs now light up per screen (`existing` dim and `pass`
         bright on the disconnect screen).
 - [x] **2026-09-06, opt-in direct field write (code-level; NOT VERIFIED, default OFF).** Setting
-      `Set the fields directly (experimental)` (`setFieldsDirectly`). `kewl.plugins.autologin.FieldWriter`
+      `Set the fields directly (experimental)` (`setFieldsDirectly`). `oxclient.plugins.autologin.FieldWriter`
       finds the username with `findString`, takes the password at `LOGIN_PASSWORD_DELTA` (508,
       recorded in `client/offsets.hpp` with how it was derived and mirrored in
       `FieldWriter.PASSWORD_DELTA`), and writes both through a new native
@@ -548,7 +548,7 @@ KEWL_LOG alone.
       the NxtString slots either side of a username hit to find the password field, and an inline
       NxtString stores `0x17 - length` in its flag byte at `+0x17`. It printed that byte and the
       length decoded from it (`neighbour +24: flag=0d inline, length 10`), and by construction the
-      neighbour it is hunting for IS the password -- so every KEWL_LOG run wrote the password's
+      neighbour it is hunting for IS the password -- so every OXC_LOG run wrote the password's
       length into the log, and the closing line told the reader to match it against their own. It
       also dumped the 16 raw bytes before each hit as hex, which for a hit inside a document is the
       neighbouring field's bytes: the same shape as the dump that leaked a password on this build
@@ -566,10 +566,10 @@ KEWL_LOG alone.
 kept as the shape of the log, but two lines in it no longer exist verbatim. Step 5 is now
 `script done (K keys/clicks, Login clicked); waiting up to N ms for the state to leave 10`,
 and the timeout branch below was replaced by `no state change after Login click: assuming the
-rejection screen, clicking Try again` -- grepping KEWL_LOG for "timed out" finds nothing because a
+rejection screen, clicking Try again` -- grepping OXC_LOG for "timed out" finds nothing because a
 rejection is logged under that new wording, not because the path never ran.
 
-What the first live run had to show in KEWL_LOG, in order:
+What the first live run had to show in OXC_LOG, in order:
 
 1. `[input] target 0x... class=JagRenderView` -- if the class is anything else, the messages went to
    the wrong window (`inputTarget()` falls back to the game root).
@@ -608,7 +608,7 @@ the client prefills the username and clears the password after a rejection; whet
 
 #### What the NEXT live run has to show (2026-09-06 screen-variant + direct-write work)
 
-Run with `KEWL_LOG` set, `Log in again after a disconnect` ON, `Set the fields directly` OFF first.
+Run with `OXC_LOG` set, `Log in again after a disconnect` ON, `Set the fields directly` OFF first.
 
 1. **Cold start, unchanged.** `screen: WELCOME (from how we got here) -- clicking Existing User
    first`, then the same 10 -> 20 -> 25 -> 30 as before. If anything about the cold start moved, the
@@ -650,7 +650,7 @@ Run with `KEWL_LOG` set, `Log in again after a disconnect` ON, `Set the fields d
       other zooms.
 - [x] "Click here to play" is clicked by the plugin after login (seen live, several cold starts); a
       failed first attempt recovers through the Try-again screen on its own.
-- [x] Shortest Path end to end: shift+right-click -> kewl popup "Set Target" -> pathfinder
+- [x] Shortest Path end to end: shift+right-click -> 0xClient popup "Set Target" -> pathfinder
       (32-step path, TARGET_REACHED) -> red path tiles on the ground, the minimap line and the debug
       panel. Three fixes were needed for it, all seen and verified live the same day:
       (1) nInput polled the mouse buttons once per frame, so a click shorter than a frame never
@@ -666,7 +666,7 @@ Run with `KEWL_LOG` set, `Log in again after a disconnect` ON, `Set the fields d
       over players. Anti-idle taps a camera key every few minutes -- the server had logged the idle
       account out ("You were disconnected from the server"), which no login-side timeout can prevent.
 - [x] The 42 confirmed findings of the whole-tree review (2026-09-06) are applied; 402 tests green.
-      One was a BLOCKER: with KEWL_LOG set the launcher printed every WM_CHAR it received, so a
+      One was a BLOCKER: with OXC_LOG set the launcher printed every WM_CHAR it received, so a
       password typed into the panel's masked field landed in the log the README tells users to
       collect. The three printfs are gone and the session's logs were scrubbed.
 - [x] The local player was in the actor list twice (Game.players()'s exclusion and ActorTable's
@@ -758,7 +758,7 @@ were reproduced in the running game before anything was changed.
 
 - [x] **A clean rebuild destroyed the only local copy of the game, and it was recovered.**
       `build/game/osclient.exe` held client-240-6, the build every offset here was measured against,
-      and `build/` is deleted by a clean. It took the hand-edited `build/dist/kewlklient.ini` with it.
+      and `build/` is deleted by a clean. It took the hand-edited `build/dist/0xclient.ini` with it.
       No local copy survived (nearest: Steam 240-5, .rsprox 239-4, .obsidian 239-1). Recovered the
       same day by re-fetching from Jagex's Akamai CDN with the procedure in
       `.claude/skills/deob/SKILL.md` ("Getting the binary"): `alias.json` -> `osrs-win.production`
@@ -778,7 +778,7 @@ were reproduced in the running game before anything was changed.
 - [x] **The walker was silently refusing to walk, and it is fixed.** Found only because the driver's
       status reaches the SIDE PANEL and nothing else, so a live run got as far as "the path is drawn,
       the character never moves" with no way to say why. `RlitePlugin` now echoes the status to
-      KEWL_LOG on CHANGE (never per frame). It immediately said `arrived (5 from target)` on the first
+      OXC_LOG on CHANGE (never per frame). It immediately said `arrived (5 from target)` on the first
       tick of a 6-step path. `ARRIVED_DISTANCE` was 5, chosen to mirror the plugin's
       `reachedDistance`, but the two measure DIFFERENT distances: the plugin's is to the TARGET, the
       driver's is to the END OF THE PATH, so any path shorter than the radius began inside it and
@@ -790,11 +790,11 @@ were reproduced in the running game before anything was changed.
       (a) is the map on screen, (b) did the click land on it, (c) can the point be inverted -- and a
       click that is (b) yes and (c) no, or (b) unanswerable, REFUSES with a stated reason rather than
       falling back to the scene. A target the user did not choose is worse than no target, and a
-      refusal is one keypress from recovery. The KEWL_LOG line names which of the three failed.
+      refusal is one keypress from recovery. The OXC_LOG line names which of the three failed.
       Question (a) reads presence only, never geometry, and the map-closed scene path is the FIRST
       statement of the branch table, above every line that mentions the map, so no geometry misread
       can break it; a 32-row exhaustive test fails if a future edit re-couples them.
-      `-Dkewl.shortestpath.sceneUnderOpenMap=true` is the escape hatch if the hidden byte ever
+      `-Doxclient.shortestpath.sceneUnderOpenMap=true` is the escape hatch if the hidden byte ever
       misreports a closed map as open.
 - [ ] **The map-open branch is still not live-verified.** Neither physical nor posted clicks would
       open the world map, at any position tried around the minimap frame -- and the button's position
@@ -899,7 +899,7 @@ were reproduced in the running game before anything was changed.
 - [x] `docs/testing.md` -- every automated suite and what each test proves (332 tests across 30
       classes when written; refreshed to 402 across 40 on 2026-09-06, including what the suite
       deliberately does NOT cover), the offline probe commands
-      (KEWL_FAKE_PANEL/CONFIG/TAB, KEWL_DUMP_FRAME/EVERY, launcher-smoke.sh, wine-setup.sh, the
+      (OXC_FAKE_PANEL/CONFIG/TAB, OXC_DUMP_FRAME/EVERY, launcher-smoke.sh, wine-setup.sh, the
       round-trip probe), and the manual integration checklist with the human's live steps for both
       the launcher path and the direct-inject fallback (2026-09-05).
 - [x] `THIRD_PARTY_NOTICES.md` -- imgui (MIT, vendored under third_party/imgui with its LICENSE.txt),
@@ -994,7 +994,7 @@ list is claimed as complete anywhere else.
   swap on real plugins. `ProfileManagerTest` proves the store logic; only a logged-in session proves
   the UX (and the persistence of the debounced writes across a real process death).
 - Live hub flows: no hub endpoint is configured by default (an empty `hub=` is an error state by
-  design), and no public KewlKlient manifest exists. The full install/update/remove path is proven
+  design), and no public 0xClient manifest exists. The full install/update/remove path is proven
   end to end by `HubEndToEndTest` over `file:`; exercising it against a real https manifest is
   whoever stands up (or points at) a manifest endpoint.
 - Hover/tooltip behaviour with a real cursor over the strip, and focus hand-off between game and
@@ -1015,17 +1015,17 @@ list is claimed as complete anywhere else.
 - `drainEdits` remains at-least-once (a crash between the JNI apply and the tail bump replays one
   edit). Unchanged by design -- a replayed Setting.set is idempotent at the value, and dropping
   would hide a change the user made.
-- `HubConfig.manifestUrl()` still reads kewlklient.ini / client.json on the calling thread, which is
+- `HubConfig.manifestUrl()` still reads 0xclient.ini / client.json on the calling thread, which is
   the frame thread -- but only on an explicit refresh click, for two small files, with the fetch
   itself already on the hub worker. Not worth the async plumbing.
-- Swing removal is NOT done, deliberately: `kewl/ui/Sidebar.java` stays as dead code -- the
+- Swing removal is NOT done, deliberately: `oxclient/ui/Sidebar.java` stays as dead code -- the
   direct-inject path must not regress, and `ConfigDefaultsTest.declaringTheFullConfigSurvivesPanelConstruction`
   still reflects into it to prove the 79 Shortest Path settings survive panel construction. Removal
   is its own step with that test rewired. No Swing panel launches in either runtime shape.
 - There is no separate "sideload" loader for external plugins -- one loader path, one set of
   validation rules; local development points a manifest at `file:` URLs (documented in
   docs/plugin-system.md, proven by HubEndToEndTest).
-- A plugin that throws every frame keeps throwing every frame: `KewlKlient.tick` and the manager
+- A plugin that throws every frame keeps throwing every frame: `OxClient.tick` and the manager
   isolate the throw, but nothing suspends or unregisters a permanently broken plugin. Turning it off
   is the user's action.
 - External plugin isolation is namespace isolation (child-first classloader), not security; stated
@@ -1037,15 +1037,15 @@ What the shim still holds an honest default for. Each method names its own gap i
 (`java/net/runelite/api/ClientState.java` unless noted); this list is the same story in one place.
 
 - **The game menu struct.** `DO_ACTION` is 0 (not derived this build), so the game's own menu entries
-  and click records are unread. `kewl.rl.MenuPopup` is the deliberate fallback design, not a stopgap
+  and click records are unread. `oxclient.rl.MenuPopup` is the deliberate fallback design, not a stopgap
   left in by accident: it detects the right-click from the input snapshot, fires the same
   MenuOpened/MenuEntryAdded events RuneLite would, and draws the plugin-contributed entries itself.
   Its limits are stated in its header comment -- it never sees the game's own entries ("Examine" and
   friends) and cannot stop the game handling the right-click too.
 - **Consequence for auto-walk: nothing can act, and now it says so.** With `DO_ACTION` 0, the DLL's
   `doAction` is a guarded no-op (`client/game.hpp` refuses to call a null RVA and prints a once-only
-  "doAction dropped" line), and `kewl.api.Actions.walkTo` returns that false to the caller.
-  `kewl.rl.AutoWalk` reports "cannot act: actions unavailable on this client build" in the panel
+  "doAction dropped" line), and `oxclient.api.Actions.walkTo` returns that false to the caller.
+  `oxclient.rl.AutoWalk` reports "cannot act: actions unavailable on this client build" in the panel
   instead of believing it walked. The movement still does not happen -- auto-walk cannot honestly be
   switched on in-game until `DO_ACTION` is derived -- but the failure is no longer silent.
 - **Minimap zoom and camera yaw.** `getMinimapZoom()` returns 4.0 and `getCameraYawTarget()` returns
@@ -1055,7 +1055,7 @@ What the shim still holds an honest default for. Each method names its own gap i
   (`client/offsets.hpp` WORLD_MAP / WM_ORIGIN_*), and the centre's coordinate space is pinned in the
   decompile: one scroll unit is 8 world tiles, so `centreTile = 8*WM_CENTRE = WM_ORIGIN + 48`
   (FUN_1401ce8b0/FUN_1401cefe0 write `origin = 8*centre - 48`; cross-checked live at the GE, scroll
-  398,429 -> origin 3136,3384). `kewl.rl.Events.pushWorldMap` feeds that centre to the shim's
+  398,429 -> origin 3136,3384). `oxclient.rl.Events.pushWorldMap` feeds that centre to the shim's
   `WorldMap` every frame. The +48 (centre vs load-window corner) follows from the symmetric +-6 load
   window, not from a live "which tile is under the widget centre" measurement -- worth one probe with
   the map open. Zoom is deliberately absent: the adversarial pass proved there is no zoom field
@@ -1075,7 +1075,7 @@ What the shim still holds an honest default for. Each method names its own gap i
 
 - The probe's rejection-path checks run against a live snapshot's bytes, not against a Java-side
   throwable; there is no test that forces `snapshot()` to throw (that needs a plugin that breaks
-  mid-walk injected into `KewlKlient.plugins()`, which is a fixed registry). The per-section guards
+  mid-walk injected into `OxClient.plugins()`, which is a fixed registry). The per-section guards
   are read-verified, and the null catch-all's DLL handling is what the probe's "empty snapshot is
   rejected" line pins.
 - Nothing automated drives the launcher's C++ UI logic (nav stack, widget geometry, edit

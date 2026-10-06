@@ -8,8 +8,8 @@
 #   tools/launcher-smoke.sh --secs 20    # keep the live launcher up for N seconds (default 15)
 #
 # What each stage proves:
-#   offline  -- KewlKlient.exe starts under Wine at all, ImGui initialises with the software
-#               rasterizer, and the strip renders the bridge's model format (KEWL_FAKE_PANEL feeds
+#   offline  -- 0xClient.exe starts under Wine at all, ImGui initialises with the software
+#               rasterizer, and the strip renders the bridge's model format (OXC_FAKE_PANEL feeds
 #               the real parser a synthetic model region). Verified by pixel values in a PAM dump of
 #               the window's own DIB -- never a screenshot, which cannot see Wine's GDI content.
 #   live     -- the launcher's window exists on the X server and paints the home screen; everything
@@ -31,25 +31,25 @@ while [ $# -gt 0 ]; do
 done
 
 command -v wine >/dev/null || { echo "wine not on PATH"; exit 1; }
-for f in KewlKlient.exe kewlklient.dll kewlklient.jar kewlklient.ini; do
+for f in 0xClient.exe 0xclient.dll 0xclient.jar 0xclient.ini; do
     [ -f "$DIST/$f" ] || { echo "$DIST/$f missing -- run sh tools/wine-setup.sh first"; exit 1; }
 done
 
 # -----------------------------------------------------------------------------------------
 # 1. OFFLINE: the strip, from a synthetic model region, verified by pixel value.
 # -----------------------------------------------------------------------------------------
-echo "== offline strip check (KEWL_FAKE_PANEL, no game, no injection)"
+echo "== offline strip check (OXC_FAKE_PANEL, no game, no injection)"
 DUMP=/tmp/kk-smoke-frame.pam
 rm -f "$DUMP"
 # A run exits only via timeout (124) -- the launcher is a window loop, that IS the success case.
-KEWL_FAKE_PANEL=1 KEWL_DUMP_FRAME="$DUMP" timeout 12 wine "$DIST/KewlKlient.exe" \
+OXC_FAKE_PANEL=1 OXC_DUMP_FRAME="$DUMP" timeout 12 wine "$DIST/0xClient.exe" \
     >/tmp/kk-smoke-launcher.log 2>&1 || rc=$?
 rc=${rc:-0}
 if [ "$rc" != "124" ]; then
     echo "   FAILED: launcher exited early (rc=$rc) -- see /tmp/kk-smoke-launcher.log"
     exit 1
 fi
-[ -f "$DUMP" ] || { echo "   FAILED: no frame dumped -- KEWL_DUMP_FRAME never fired"; exit 1; }
+[ -f "$DUMP" ] || { echo "   FAILED: no frame dumped -- OXC_DUMP_FRAME never fired"; exit 1; }
 if command -v python3 >/dev/null; then
     python3 - "$DUMP" <<'EOF'
 import sys
@@ -82,17 +82,17 @@ if [ "$NO_LIVE" = 1 ]; then echo; echo "live stage skipped (--no-live)"; exit 0;
 
 echo
 echo "== live launcher (no fake panel): pid printed below, window should show the home screen"
-DISPLAY=${DISPLAY:-:0} wine "$DIST/KewlKlient.exe" >/tmp/kk-smoke-live.log 2>&1 &
+DISPLAY=${DISPLAY:-:0} wine "$DIST/0xClient.exe" >/tmp/kk-smoke-live.log 2>&1 &
 WINE_PID=$!
 echo "   launcher pid: $WINE_PID   (log: /tmp/kk-smoke-live.log)"
 sleep 5
 
 echo "   window probes (run these while it is up):"
 if command -v wmctrl >/dev/null 2>&1; then
-    echo "     wmctrl -l | grep -i kewlklient          # expect one 'KewlKlient' top-level window"
+    echo "     wmctrl -l | grep -i 0xclient          # expect one '0xClient' top-level window"
 fi
 if command -v xdotool >/dev/null 2>&1; then
-    echo "     xdotool search --name '^KewlKlient$'   # expect one X window id"
+    echo "     xdotool search --name '^0xClient$'   # expect one X window id"
 fi
 echo "     xprop -root _NET_CLIENT_LIST           # cross-check the id list"
 
@@ -104,10 +104,10 @@ echo
 echo "=========================================================================================="
 echo "LIVE PROBES (the human does these -- this script never clicks the button):"
 echo
-echo "  0. Point kewlklient.ini (next to $DIST/KewlKlient.exe) at the game, e.g.:"
-echo "       [kewl]"
+echo "  0. Point 0xclient.ini (next to $DIST/0xClient.exe) at the game, e.g.:"
+echo "       [oxclient]"
 echo "       game=Z:\\home\\me\\.wine\\drive_c\\Program Files\\osclient\\osclient.exe"
-echo "     (the [kewlklient] section works too; dll= defaults to kewlklient.dll beside the exe)"
+echo "     (the [0xclient] section works too; dll= defaults to 0xclient.dll beside the exe)"
 echo
 echo "  1. Start the launcher, press '+ client'. Expect: status 'osclient.exe started (pid N)',"
 echo "     then 'embedded. waiting for the DLL bridge...' and the game's window inside the"

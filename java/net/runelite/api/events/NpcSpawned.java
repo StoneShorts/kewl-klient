@@ -31,7 +31,7 @@ import net.runelite.api.NPC;
 /**
  * An event where an NPC has spawned.
  * <p>
- * Shim note: fired by kewl.rl.Events from a per-frame diff of the ActorTable, before GameTick.
+ * Shim note: fired by oxclient.rl.Events from a per-frame diff of the ActorTable, before GameTick.
  */
 @Value
 public class NpcSpawned

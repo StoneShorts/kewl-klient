@@ -1,10 +1,10 @@
-﻿// dllmain.cpp -- KewlKlient's native half.
+﻿// dllmain.cpp -- 0xClient's native half.
 //
 // Injected into the game, it does four things and then gets out of the way:
 //   1. starts a Java VM and registers the natives (jvm.hpp),
 //   2. finds the game window,
 //   3. puts a transparent always-on-top window over it (overlay.hpp),
-//   4. calls kewl.KewlKlient.tick() about thirty times a second.
+//   4. calls oxclient.OxClient.tick() about thirty times a second.
 //
 // Notice what is NOT here any more: drawing. Java renders the whole overlay into an image and hands it
 // back through present(). Everything you would actually want to CHANGE lives in java/.
@@ -18,7 +18,7 @@
 //   DIRECT INJECT  -- osclient.exe was started on its own and the DLL was injected into it (wine_inject).
 //                     Everything here builds its own host window and its own Java panel, exactly as it
 //                     always did. This path must not change behaviour.
-//   LAUNCHER MODE  -- KewlKlient.exe spawned this game and wants the game as a child of ITS window, with
+//   LAUNCHER MODE  -- 0xClient.exe spawned this game and wants the game as a child of ITS window, with
 //                     an ImGui panel it draws itself. The DLL then creates no host and no panel window:
 //                     the launcher IS the host, the panel's data crosses the shared-memory bridge
 //                     (bridge.hpp), and this DLL keeps the parts that must live in the game process --
@@ -37,6 +37,7 @@
 #include "panel.hpp"
 #include "jvm.hpp"
 #include "bridge.hpp"
+#include "offsets_json.hpp"
 
 namespace {
 
@@ -69,10 +70,10 @@ void layoutEmbed() {
     g_setGameH = ch;
     // The panel is a top-level window owned by the host (see the creation site for why), so its dock
     // position is in screen coordinates, not host-client coordinates.
-    if (kk::panel::g_panel.hwnd && IsWindow(kk::panel::g_panel.hwnd)) {
+    if (oxc::panel::g_panel.hwnd && IsWindow(oxc::panel::g_panel.hwnd)) {
         POINT org{ 0, 0 };
         ClientToScreen(g_host, &org);
-        SetWindowPos(kk::panel::g_panel.hwnd, nullptr, org.x + gameW, org.y, PANEL_W, ch,
+        SetWindowPos(oxc::panel::g_panel.hwnd, nullptr, org.x + gameW, org.y, PANEL_W, ch,
                      SWP_NOZORDER | SWP_NOACTIVATE);
     }
 }
@@ -130,7 +131,7 @@ BOOL CALLBACK pickWindow(HWND h, LPARAM lp) {
     // window is recreated (review 2026-09-06), and by then the direct-inject host is the biggest
     // window we own (game + panel strip). Adopting it as "the game" would SetParent it into itself.
     // The panel is an OWNED popup and the bridge window is hidden, so the two below are enough.
-    if (h == g_host || h == kk::g_overlay.hwnd) return TRUE;
+    if (h == g_host || h == oxc::g_overlay.hwnd) return TRUE;
     RECT r{};
     GetClientRect(h, &r);
     long area = (r.right - r.left) * (r.bottom - r.top);
@@ -184,14 +185,14 @@ HWND findEmbeddedGameWindow() {
 // into its own. It signals its intent BEFORE the SetParent (afterwards the game window is a child,
 // and EnumWindows never enumerates children), in two ways, either of which is accepted:
 //
-//   1. PostMessageW of the registered "KewlKlientEmbed" message to the game's top-level window,
+//   1. PostMessageW of the registered "0xClientEmbed" message to the game's top-level window,
 //      carrying the launcher's hwnd. To hear it we hold a temporary-looking subclass on that window
 //      (gameTopProc) which forwards everything else untouched -- the same shape as the render-view
 //      subclass, and for the same reason: it is the only way to see a message the game's own proc
 //      would drop. Because a posted message can beat the subclass into place by a few milliseconds
 //      (both sides are polling for the same window at 100 ms), the launcher is expected to post the
 //      message a few times over its first couple of seconds.
-//   2. SetPropW(gameHwnd, L"KewlKlientLauncherHwnd", launcherHwnd), read here with GetPropW.
+//   2. SetPropW(gameHwnd, L"0xClientLauncherHwnd", launcherHwnd), read here with GetPropW.
 //
 // A third signal needs no cooperation at all: if the game window is ALREADY a child when we look at
 // it, the launcher won the race and its root window is the host.
@@ -220,7 +221,7 @@ LRESULT CALLBACK gameTopProc(HWND h, UINT m, WPARAM w, LPARAM l) {
 /// so it is inert from the game's point of view. Kept for the life of the session -- removing it
 /// would race messages already in flight, and it costs one comparison per message.
 void watchForLauncher(HWND game) {
-    if (g_msgEmbed == 0) g_msgEmbed = RegisterWindowMessageW(L"KewlKlientEmbed");
+    if (g_msgEmbed == 0) g_msgEmbed = RegisterWindowMessageW(L"0xClientEmbed");
     if (g_gameProcOriginal) return;
     g_gameProcOriginal = reinterpret_cast<WNDPROC>(
         SetWindowLongPtrW(game, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(gameTopProc)));
@@ -237,7 +238,7 @@ bool reacquireGameWindow() {
     if (!w) w = findEmbeddedGameWindow();               // the launcher may have embedded it already
     if (!w || w == g_game) return false;
     g_game = w;
-    kk::g_gameWindow = g_game;
+    oxc::g_gameWindow = g_game;
     g_gameProcOriginal = nullptr;   // the embed-message subclass died with the old window
     watchForLauncher(g_game);       // ... so put it back on the new one
     return true;
@@ -254,16 +255,16 @@ bool alreadyEmbedded(HWND game, HWND& root) {
 
 /// The launcher's hwnd, if it staked a claim on the game window with the property fallback.
 HWND launcherProp(HWND game) {
-    HANDLE p = GetPropW(game, L"KewlKlientLauncherHwnd");
+    HANDLE p = GetPropW(game, L"0xClientLauncherHwnd");
     return p ? reinterpret_cast<HWND>(p) : nullptr;
 }
 
-/// Were we spawned by KewlKlient.exe? Decides how long we are willing to WAIT for a signal.
+/// Were we spawned by 0xClient.exe? Decides how long we are willing to WAIT for a signal.
 ///
 /// Direct injection must behave exactly as it always has, which means no startup delay: inject, find
 /// the window, build the host. But a launcher-spawned game must give the launcher time to signal, and
 /// guessing wrong in THAT direction is far worse -- a host window built here would sit between the
-/// launcher's SetParent and everything that follows. So: when the parent process is KewlKlient.exe,
+/// launcher's SetParent and everything that follows. So: when the parent process is 0xClient.exe,
 /// wait up to thirty seconds for a signal; otherwise do not wait at all. Toolhelp is the cheapest way
 /// to a parent pid that works under Wine.
 bool launcherSpawnedUs() {
@@ -289,12 +290,12 @@ bool launcherSpawnedUs() {
     }
     CloseHandle(snap);
 
-    // Case-insensitive basename compare: the launcher ships as KewlKlient.exe, and a renamed copy is
+    // Case-insensitive basename compare: the launcher ships as 0xClient.exe, and a renamed copy is
     // still recognisable by its base name. A parent that has already exited (pid reuse aside) simply
     // will not be found, and we then behave as direct inject -- which is the safe default.
     wchar_t* base = parentExe;
     for (wchar_t* c = parentExe; *c; ++c) if (*c == L'\\') base = c + 1;
-    return lstrcmpiW(base, L"KewlKlient.exe") == 0;
+    return lstrcmpiW(base, L"0xClient.exe") == 0;
 }
 
 /// Decide the mode. Returns true (and sets g_host) only when a launcher signalled. Sets g_game first
@@ -338,7 +339,7 @@ bool detectLauncherMode() {
 // The only drawing C++ still does: telling you why Java is not drawing.
 // ------------------------------------------------------------------------------------------------
 void renderJavaError(int w, int h) {
-    if (!kk::g_overlay.ensure(w, h)) return;
+    if (!oxc::g_overlay.ensure(w, h)) return;
 
     // Wrap the message: it carries a full filesystem path now, which is the whole point of it, and a
     // path clipped at the panel edge hides exactly the character that is wrong.
@@ -349,16 +350,16 @@ void renderJavaError(int w, int h) {
     }
     if (body.empty()) body.push_back("(no reason given)");
     body.push_back("");
-    body.push_back("Fix java= in kewlklient.ini, next to this DLL, then restart the game.");
+    body.push_back("Fix java= in 0xclient.ini, next to this DLL, then restart the game.");
 
     const int lineH = 18;
     int panelH = 34 + lineH * static_cast<int>(body.size()) + 10;
 
     // Start from fully transparent, then paint an opaque panel. Every pixel we touch needs alpha 255
     // or UpdateLayeredWindow will treat it as invisible.
-    std::memset(kk::g_overlay.pixels, 0, static_cast<std::size_t>(w) * h * 4);
+    std::memset(oxc::g_overlay.pixels, 0, static_cast<std::size_t>(w) * h * 4);
 
-    HDC dc = kk::g_overlay.memDc;
+    HDC dc = oxc::g_overlay.memDc;
     RECT panel{ 10, 10, 640, 10 + panelH };
     HBRUSH bg = CreateSolidBrush(RGB(24, 24, 28));
     FillRect(dc, &panel, bg);
@@ -371,7 +372,7 @@ void renderJavaError(int w, int h) {
     HGDIOBJ oldFont = SelectObject(dc, font);
 
     SetTextColor(dc, RGB(255, 120, 120));
-    TextOutA(dc, 22, 20, "KewlKlient: Java did not start", 30);
+    TextOutA(dc, 22, 20, "0xClient: Java did not start", 30);
 
     int y = 44;
     for (std::size_t i = 0; i < body.size(); ++i) {
@@ -385,7 +386,7 @@ void renderJavaError(int w, int h) {
 
     // GDI text leaves the alpha byte at zero, which would make everything we just drew invisible.
     // Force the panel opaque.
-    auto* px = static_cast<std::uint32_t*>(kk::g_overlay.pixels);
+    auto* px = static_cast<std::uint32_t*>(oxc::g_overlay.pixels);
     for (int y = panel.top; y < panel.bottom && y < h; ++y) {
         for (int x = panel.left; x < panel.right && x < w; ++x) {
             px[static_cast<std::size_t>(y) * w + x] |= 0xFF000000u;
@@ -396,7 +397,7 @@ void renderJavaError(int w, int h) {
     SIZE          size{ w, h };
     BLENDFUNCTION blend{ AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
     HDC screen = GetDC(nullptr);
-    UpdateLayeredWindow(kk::g_overlay.hwnd, screen, nullptr, &size, dc, &srcPt, 0, &blend, ULW_ALPHA);
+    UpdateLayeredWindow(oxc::g_overlay.hwnd, screen, nullptr, &size, dc, &srcPt, 0, &blend, ULW_ALPHA);
     ReleaseDC(nullptr, screen);
 }
 
@@ -422,26 +423,26 @@ LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     // No WM_SETCURSOR handler here on purpose. The old one called SetCursor(nullptr) over the panel
     // (the software-cursor workaround), which is what actually blanked the pointer over the panel --
     // probed live with an XFixes oracle: with the handler gone and DefWindowProc applying the class
-    // cursor (KewlKlientOverlay registers hCursor = IDC_ARROW), the panel shows a real 48x48 left_ptr
+    // cursor (0xClientOverlay registers hCursor = IDC_ARROW), the panel shows a real 48x48 left_ptr
     // and the game area keeps its cursor too. Java's SidePanel.drawCursor arrow and the leave-detect
     // poll in run() are now redundant and should be deleted.
 
     // The panel is an opaque child window now, so it gets real WM_PAINTs (uncovered, restored,
     // resized). Re-blit the last frame Java gave us rather than showing garbage until the next
     // tick -- the DIB back buffer holds it.
-    if (h == kk::panel::g_panel.hwnd && m == WM_PAINT) {
+    if (h == oxc::panel::g_panel.hwnd && m == WM_PAINT) {
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(h, &ps);
-        if (kk::panel::g_panel.memDc && kk::panel::g_panel.width > 0)
-            BitBlt(dc, 0, 0, kk::panel::g_panel.width, kk::panel::g_panel.height,
-                   kk::panel::g_panel.memDc, 0, 0, SRCCOPY);
+        if (oxc::panel::g_panel.memDc && oxc::panel::g_panel.width > 0)
+            BitBlt(dc, 0, 0, oxc::panel::g_panel.width, oxc::panel::g_panel.height,
+                   oxc::panel::g_panel.memDc, 0, 0, SRCCOPY);
         EndPaint(h, &ps);
         return 0;
     }
 
     // The panel window forwards its mouse events to Java. The game overlay never gets here with a
     // mouse message -- it is WS_EX_TRANSPARENT, so Windows routes clicks around it entirely.
-    if (h == kk::panel::g_panel.hwnd) {
+    if (h == oxc::panel::g_panel.hwnd) {
         // Clicking the panel must not move keyboard focus into THIS thread's queue: focus here is
         // dead for the game (its input lives in the game thread's queue), and a user who clicks the
         // panel and then tries to type at the login screen would get nothing. Keep focus on the game.
@@ -453,15 +454,15 @@ LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (m == WM_MOUSEWHEEL) {                       // wheel coords arrive in screen space
             p = POINT{ GET_X_LPARAM(l), GET_Y_LPARAM(l) };
             ScreenToClient(h, &p);
-            kk::panelMouse(p.x, p.y, 4, GET_WHEEL_DELTA_WPARAM(w) > 0);
+            oxc::panelMouse(p.x, p.y, 4, GET_WHEEL_DELTA_WPARAM(w) > 0);
             return 0;
         }
         switch (m) {
-            case WM_MOUSEMOVE:   kk::panelMouse(p.x, p.y, 0, false); return 0;
-            case WM_LBUTTONDOWN: kk::panelMouse(p.x, p.y, 1, true);  return 0;
-            case WM_LBUTTONUP:   kk::panelMouse(p.x, p.y, 1, false); return 0;
-            case WM_MBUTTONDOWN: kk::panelMouse(p.x, p.y, 2, true);  return 0;
-            case WM_RBUTTONDOWN: kk::panelMouse(p.x, p.y, 3, true);  return 0;
+            case WM_MOUSEMOVE:   oxc::panelMouse(p.x, p.y, 0, false); return 0;
+            case WM_LBUTTONDOWN: oxc::panelMouse(p.x, p.y, 1, true);  return 0;
+            case WM_LBUTTONUP:   oxc::panelMouse(p.x, p.y, 1, false); return 0;
+            case WM_MBUTTONDOWN: oxc::panelMouse(p.x, p.y, 2, true);  return 0;
+            case WM_RBUTTONDOWN: oxc::panelMouse(p.x, p.y, 3, true);  return 0;
             default: break;
         }
     }
@@ -470,7 +471,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
 
 std::wstring iniString(const std::wstring& ini, const wchar_t* key, const wchar_t* fallback) {
     wchar_t buf[MAX_PATH]{};
-    GetPrivateProfileStringW(L"kewlklient", key, fallback, buf, MAX_PATH, ini.c_str());
+    GetPrivateProfileStringW(L"0xclient", key, fallback, buf, MAX_PATH, ini.c_str());
     return buf;
 }
 
@@ -509,7 +510,7 @@ void attachInput() {
     giveGameFocus();
     // Button-press latch for nInput (jvm.hpp): the render view's thread is the one that receives
     // the clicks, so hook that one (falls back to the top-level's when there is no render view).
-    kk::installMouseLatch(g_renderView ? g_renderView : g_game);
+    oxc::installMouseLatch(g_renderView ? g_renderView : g_game);
 
     // Subclass the render view so the cursor over the game is always a real arrow (see
     // renderViewProc). After the input-queue attaches, so the subclass cannot disturb anything
@@ -551,30 +552,49 @@ std::wstring hostFileVersion() {
 
 // Refuse a client this DLL was not measured on. Every number in offsets.hpp is for one build; against
 // any other, a struct offset reads a plausible wrong value and an RVA call crashes the game. Returns
-// the message to show, or "" when the build matches. KEWL_SKIP_BUILD_CHECK=1 overrides -- for the
+// the message to show, or "" when the build matches. OXC_SKIP_BUILD_CHECK=1 overrides -- for the
 // deob workflow, where running the DLL against a NEW build to hook-and-log is the whole point -- and
 // says so in the log, so a wrong number can never masquerade as a logic bug quietly.
-std::string checkBuild() {
+std::string checkBuild(const std::wstring& dllDir) {
     const std::wstring have = hostFileVersion();
-    const std::wstring want = kk::off::BUILD_VERSION;
+    const std::string shown = have.empty() ? "(no version resource)" : oxc::narrow(have);
+
+    // First choice: a per-build offsets file for exactly this exe. It replaces every compiled
+    // default, so the DLL does not have to be rebuilt when Jagex ships a new client -- only the
+    // file has to exist (offsets/client-<version>.json beside the DLL, or in the repository).
+    if (!have.empty()) {
+        const oxc::offjson::Report rep = oxc::offjson::load(dllDir, have);
+        if (rep.loaded) {
+            oxc::logf("[build] osclient.exe %s: offsets/client-%s.json loaded from %s "
+                      "(%d applied, %d missing, %d unknown)\n",
+                      shown.c_str(), rep.build.c_str(), rep.source.c_str(), rep.applied, rep.missing, rep.unknown);
+            for (const std::string& n : rep.missingNames)
+                oxc::logf("[build]   missing in the offsets file, compiled default kept: %s\n", n.c_str());
+            return "";
+        }
+        oxc::logf("[build] %s\n", rep.error.c_str());
+    }
+
+    // Second choice: the compiled defaults, when this exe is the build they were measured on.
+    const std::wstring want = oxc::off::BUILD_VERSION;
     if (have == want) {
-        kk::logf("[build] osclient.exe %s matches offsets.hpp (client-%s)\n",
-                    kk::narrow(have).c_str(), kk::narrow(want).c_str());
+        oxc::logf("[build] osclient.exe %s matches the compiled defaults (client-%s)\n",
+                    oxc::narrow(have).c_str(), oxc::narrow(want).c_str());
         return "";
     }
-    const std::string shown = have.empty() ? "(no version resource)" : kk::narrow(have);
-    if (::getenv("KEWL_SKIP_BUILD_CHECK")) {
-        kk::logf("[build] WARNING: osclient.exe %s but offsets.hpp is for client-%s -- "
-                    "KEWL_SKIP_BUILD_CHECK set, every offset is now suspect\n",
-                    shown.c_str(), kk::narrow(want).c_str());
+    if (::getenv("OXC_SKIP_BUILD_CHECK")) {
+        oxc::logf("[build] WARNING: osclient.exe %s but the compiled defaults are for client-%s -- "
+                    "OXC_SKIP_BUILD_CHECK set, every offset is now suspect\n",
+                    shown.c_str(), oxc::narrow(want).c_str());
         return "";
     }
-    kk::logf("[build] REFUSED: osclient.exe %s, offsets.hpp is for client-%s\n",
-                shown.c_str(), kk::narrow(want).c_str());
-    return "this is osclient.exe " + shown + ", but kewlklient.dll was built for client-" +
-           kk::narrow(want) + ". Not reading its memory: every offset in client/offsets.hpp was "
-           "measured on that build. Run the matching client, or re-derive the offsets "
-           "(.claude/skills/deob) and bump BUILD_VERSION with them.";
+    oxc::logf("[build] REFUSED: osclient.exe %s, no offsets file for it, compiled defaults are for client-%s\n",
+                shown.c_str(), oxc::narrow(want).c_str());
+    return "this is osclient.exe " + shown + ", and there is no offsets/client-" + shown +
+           ".json for it (the compiled defaults are for client-" + oxc::narrow(want) + "). "
+           "Not reading its memory: every offset was measured on one build. Run "
+           "`python tools/update/update.py --build " + shown + "` to derive the file, or wait for "
+           "the repository's updater to publish it, then start again.";
 }
 
 DWORD WINAPI run(LPVOID module) {
@@ -582,7 +602,7 @@ DWORD WINAPI run(LPVOID module) {
     GetModuleFileNameW(static_cast<HMODULE>(module), path, MAX_PATH);
     std::wstring dir(path);
     dir.resize(dir.find_last_of(L'\\'));
-    std::wstring ini = dir + L"\\kewlklient.ini";
+    std::wstring ini = dir + L"\\0xclient.ini";
 
     // Find the game window BEFORE starting Java: the Java side asks for the viewport as soon as it
     // starts, and a null window there would have it build a zero-sized image.
@@ -596,12 +616,12 @@ DWORD WINAPI run(LPVOID module) {
     if (!g_game) {
         // Say so: a silent return here is indistinguishable, from the launcher's side, from a DLL
         // that never loaded.
-        kk::logf("[dll] no game window found in 60 s (top-level or embedded) -- giving up\n");
+        oxc::logf("[dll] no game window found in 60 s (top-level or embedded) -- giving up\n");
         return 0;
     }
-    kk::logf("[dll] game window %p (%s)\n", (void*)g_game,
+    oxc::logf("[dll] game window %p (%s)\n", (void*)g_game,
                 GetAncestor(g_game, GA_ROOT) == g_game ? "top-level" : "embedded");
-    kk::g_gameWindow = g_game;
+    oxc::g_gameWindow = g_game;
 
     // Which mode are we in? Decided once, before anything is built: launcher mode skips the host and
     // the panel below, direct inject keeps them, and neither path may disturb the other.
@@ -622,7 +642,7 @@ DWORD WINAPI run(LPVOID module) {
         hc.lpfnWndProc   = hostProc;
         hc.hInstance     = static_cast<HMODULE>(module);
         hc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
-        hc.lpszClassName = L"KewlKlientHost";
+        hc.lpszClassName = L"0xClientHost";
         RegisterClassExW(&hc);
 
         RECT cr{}, wr{};
@@ -631,7 +651,7 @@ DWORD WINAPI run(LPVOID module) {
         RECT fr{ 0, 0, (cr.right - cr.left) + PANEL_W, cr.bottom - cr.top };
         AdjustWindowRect(&fr, WS_OVERLAPPEDWINDOW, FALSE);
 
-        g_host = CreateWindowExW(0, hc.lpszClassName, L"KewlKlient", WS_OVERLAPPEDWINDOW,
+        g_host = CreateWindowExW(0, hc.lpszClassName, L"0xClient", WS_OVERLAPPEDWINDOW,
                                  wr.left, wr.top, fr.right - fr.left, fr.bottom - fr.top,
                                  nullptr, nullptr, hc.hInstance, nullptr);
         if (!g_host) return 0;
@@ -652,30 +672,30 @@ DWORD WINAPI run(LPVOID module) {
     }
 
     std::wstring javaHome = iniString(ini, L"java", L"");
-    std::wstring jar      = dir + L"\\kewlklient.jar";
+    std::wstring jar      = dir + L"\\0xclient.jar";
     // The build check comes first: with g_javaError set the loop below never ticks the JVM, so no
     // native ever reads game memory. The message renders natively over the game like any other
     // start-up failure.
-    g_javaError = checkBuild();
+    g_javaError = checkBuild(dir);
     if (!g_javaError.empty()) {
         // said above
     } else if (javaHome.empty()) {
-        g_javaError = "java= is not set in kewlklient.ini";
-    } else if (!kk::startJvm(javaHome, jar, g_javaError)) {
+        g_javaError = "java= is not set in 0xclient.ini";
+    } else if (!oxc::startJvm(javaHome, jar, g_javaError)) {
         // g_javaError already says what went wrong.
     }
 
     // Say which process owns the panel before the first tick draws anything: in launcher mode Java
     // must not draw SidePanel into a window that does not exist. No-op on an older jar.
-    kk::notifyPanelMode(launcherMode);
+    oxc::notifyPanelMode(launcherMode);
 
     // Launcher mode's data half: the mapping, the mutex and the hidden window the launcher posts edit
     // notifications to. From here until the game window goes, the loop below publishes the model and
     // drains the edits.
-    if (launcherMode && !kk::bridge::start(static_cast<HMODULE>(module), g_host)) {
+    if (launcherMode && !oxc::bridge::start(static_cast<HMODULE>(module), g_host)) {
         // The bridge is the panel's whole lifeline in this mode, but a refusal here must not take the
         // game down: the panel just stays empty while the overlays keep working.
-        kk::logf("[bridge] could not create the shared mapping -- panel data unavailable (GetLastError=%lu)\n",
+        oxc::logf("[bridge] could not create the shared mapping -- panel data unavailable (GetLastError=%lu)\n",
                     static_cast<unsigned long>(GetLastError()));
         std::fflush(stdout);
     }
@@ -684,18 +704,18 @@ DWORD WINAPI run(LPVOID module) {
     wc.lpfnWndProc   = wndProc;
     wc.hInstance     = static_cast<HMODULE>(module);
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);   // the panel is a real child window now:
-    wc.lpszClassName = L"KewlKlientOverlay";             // no cursor here means an INVISIBLE one
+    wc.lpszClassName = L"0xClientOverlay";             // no cursor here means an INVISIBLE one
     RegisterClassExW(&wc);
 
     // WS_EX_TRANSPARENT is what makes clicks fall through to the game underneath. Without it the
     // overlay eats every click and the game becomes unplayable, which is a memorable ten minutes.
     // Deliberately NOT topmost: the loop pins it directly above the host window every frame, so it
     // hides with the client instead of hovering over whatever app you switched to.
-    kk::g_overlay.hwnd = CreateWindowExW(
+    oxc::g_overlay.hwnd = CreateWindowExW(
         WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
         wc.lpszClassName, L"", WS_POPUP, 0, 0, 100, 100, nullptr, nullptr, wc.hInstance, nullptr);
-    if (!kk::g_overlay.hwnd) return 0;
-    ShowWindow(kk::g_overlay.hwnd, SW_SHOWNOACTIVATE);
+    if (!oxc::g_overlay.hwnd) return 0;
+    ShowWindow(oxc::g_overlay.hwnd, SW_SHOWNOACTIVATE);
 
     // The panel is the ONE surface that may keep a click. It is an OWNED POPUP top-level, docked into
     // the right strip by layoutEmbed(), not a child window -- and that is a Wine cursor fix, not a
@@ -714,11 +734,11 @@ DWORD WINAPI run(LPVOID module) {
     // from the bridge's model. No panel window means no panel mouse messages either, so the wndProc
     // panel branch above and the leave-poll below are naturally dead code in that mode.
     if (!launcherMode) {
-        kk::panel::g_panel.hwnd = CreateWindowExW(
+        oxc::panel::g_panel.hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, wc.lpszClassName, L"", WS_POPUP,
             0, 0, PANEL_W, 100, g_host, nullptr, wc.hInstance, nullptr);
-        if (!kk::panel::g_panel.hwnd) return 0;
-        ShowWindow(kk::panel::g_panel.hwnd, SW_SHOWNOACTIVATE);
+        if (!oxc::panel::g_panel.hwnd) return 0;
+        ShowWindow(oxc::panel::g_panel.hwnd, SW_SHOWNOACTIVATE);
     }
 
     MSG msg{};
@@ -742,12 +762,12 @@ DWORD WINAPI run(LPVOID module) {
                 if (now - gameGoneSince >= 5000) break;
                 // Nothing to draw over: on a real close this is the game's last second and an overlay
                 // still floating above a dying window is the one visible cost of waiting at all.
-                if (IsWindowVisible(kk::g_overlay.hwnd)) ShowWindow(kk::g_overlay.hwnd, SW_HIDE);
+                if (IsWindowVisible(oxc::g_overlay.hwnd)) ShowWindow(oxc::g_overlay.hwnd, SW_HIDE);
                 Sleep(100);
                 continue;                              // do not tick Java against a dead window
             }
             gameGoneSince = 0;
-            kk::logf("[dll] game window was recreated -- now %p (%s)\n", (void*)g_game,
+            oxc::logf("[dll] game window was recreated -- now %p (%s)\n", (void*)g_game,
                      GetAncestor(g_game, GA_ROOT) == g_game ? "top-level" : "embedded");
             attachInput();                             // new render view: queues, latch, cursor subclass
             if (!launcherMode) {
@@ -828,15 +848,15 @@ DWORD WINAPI run(LPVOID module) {
         // And when another app is focused, the overlay sits directly above the host in the z-order
         // instead of above everything -- entity boxes have no business showing over a browser window.
         if (IsIconic(g_host) || !IsWindowVisible(g_game)) {
-            ShowWindow(kk::g_overlay.hwnd, SW_HIDE);
-            if (IsWindowVisible(kk::panel::g_panel.hwnd)) ShowWindow(kk::panel::g_panel.hwnd, SW_HIDE);
+            ShowWindow(oxc::g_overlay.hwnd, SW_HIDE);
+            if (IsWindowVisible(oxc::panel::g_panel.hwnd)) ShowWindow(oxc::panel::g_panel.hwnd, SW_HIDE);
         } else {
-            if (!IsWindowVisible(kk::g_overlay.hwnd)) ShowWindow(kk::g_overlay.hwnd, SW_SHOWNOACTIVATE);
-            if (!IsWindowVisible(kk::panel::g_panel.hwnd)) ShowWindow(kk::panel::g_panel.hwnd, SW_SHOWNOACTIVATE);
+            if (!IsWindowVisible(oxc::g_overlay.hwnd)) ShowWindow(oxc::g_overlay.hwnd, SW_SHOWNOACTIVATE);
+            if (!IsWindowVisible(oxc::panel::g_panel.hwnd)) ShowWindow(oxc::panel::g_panel.hwnd, SW_SHOWNOACTIVATE);
             // Pin the overlay immediately ABOVE the host (insert the host after it in z-order --
             // hWndInsertAfter means "this window goes behind that one"), not above every window
             // there is: another app the user focuses covers the overlay like it covers the game.
-            SetWindowPos(g_host, kk::g_overlay.hwnd, 0, 0, 0, 0,
+            SetWindowPos(g_host, oxc::g_overlay.hwnd, 0, 0, 0, 0,
                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             // The overlay must sit on the game's RENDER CANVAS, not on the frame around it: NXT
             // draws the scene into its JagRenderView child, the projection answers in that child's
@@ -844,8 +864,8 @@ DWORD WINAPI run(LPVOID module) {
             // NXT re-applied its own layout). Re-resolve every frame rather than once -- NXT can
             // recreate the child, and a stale HWND here reads as a 0x0 rect that hides the overlay.
             g_renderView = FindWindowExW(g_game, nullptr, L"JagRenderView", nullptr);
-            kk::g_canvasWindow = g_renderView ? g_renderView : g_game;
-            kk::overlay::followWindow(kk::g_canvasWindow);
+            oxc::g_canvasWindow = g_renderView ? g_renderView : g_game;
+            oxc::overlay::followWindow(oxc::g_canvasWindow);
         }
 
         // Tell Java when the pointer has left the panel: a window only receives WM_MOUSEMOVE while
@@ -859,8 +879,8 @@ DWORD WINAPI run(LPVOID module) {
             POINT cp{};
             if (GetCursorPos(&cp)) {
                 static bool wasOverPanel = false;
-                bool overPanel = WindowFromPoint(cp) == kk::panel::g_panel.hwnd;
-                if (wasOverPanel && !overPanel) kk::panelMouse(-1, -1, 0, false);
+                bool overPanel = WindowFromPoint(cp) == oxc::panel::g_panel.hwnd;
+                if (wasOverPanel && !overPanel) oxc::panelMouse(-1, -1, 0, false);
                 wasOverPanel = overPanel;
             }
         }
@@ -868,9 +888,9 @@ DWORD WINAPI run(LPVOID module) {
         if (g_javaError.empty()) {
             // Launcher mode: move the bridge along -- publish the model if Java's revision moved,
             // apply whatever edits the launcher queued. One JNI poll per frame, nothing more.
-            if (launcherMode) kk::bridge::tick();
+            if (launcherMode) oxc::bridge::tick();
             // Java draws and presents. We do nothing but ask.
-            kk::tickJvm(pollKeys());
+            oxc::tickJvm(pollKeys());
         } else {
             RECT r{};
             GetClientRect(g_game, &r);
@@ -880,14 +900,14 @@ DWORD WINAPI run(LPVOID module) {
         Sleep(33);                                     // ~30 fps is plenty for an overlay
     }
 
-    kk::g_overlay.release();
-    if (kk::g_overlay.hwnd && IsWindow(kk::g_overlay.hwnd)) DestroyWindow(kk::g_overlay.hwnd);
-    if (kk::panel::g_panel.hwnd) {
-        kk::panel::g_panel.release();
-        DestroyWindow(kk::panel::g_panel.hwnd);
+    oxc::g_overlay.release();
+    if (oxc::g_overlay.hwnd && IsWindow(oxc::g_overlay.hwnd)) DestroyWindow(oxc::g_overlay.hwnd);
+    if (oxc::panel::g_panel.hwnd) {
+        oxc::panel::g_panel.release();
+        DestroyWindow(oxc::panel::g_panel.hwnd);
     }
     if (launcherMode) {
-        kk::bridge::stop();
+        oxc::bridge::stop();
     } else if (g_host && IsWindow(g_host)) {
         DestroyWindow(g_host);          // ours to destroy. The launcher's window never was.
     }
@@ -902,13 +922,13 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
         // Every printf in the DLL goes to stdout, which is fine when the game was started from a
         // shell (tools/wine-setup.sh's instructions) -- but the LAUNCHER is a GUI-subsystem process
         // with no console, so a game it spawns inherits no stdout and every diagnostic vanishes.
-        // KEWL_LOG=<path> redirects stdout to a file instead; the env var reaches this process
+        // OXC_LOG=<path> redirects stdout to a file instead; the env var reaches this process
         // through the launcher, which inherits it from the shell that started it.
         // Appending, shared with the launcher (which inherited this env var and opened the same file
         // first): its [input] trace and our lines interleave in one file. See log.hpp for why this is
         // a kernel handle and not freopen(stdout) -- and why it must happen before the JVM starts.
-        if (const char* log = ::getenv("KEWL_LOG")) kk::logOpen(log);
-        kk::logf("[dll] attached to pid %lu\n", static_cast<unsigned long>(GetCurrentProcessId()));
+        if (const char* log = ::getenv("OXC_LOG")) oxc::logOpen(log);
+        oxc::logf("[dll] attached to pid %lu\n", static_cast<unsigned long>(GetCurrentProcessId()));
         CreateThread(nullptr, 0, run, module, 0, nullptr);
     }
     return TRUE;

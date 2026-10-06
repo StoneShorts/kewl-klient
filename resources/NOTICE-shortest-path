@@ -50,7 +50,7 @@ classes under net/runelite/client/util/.
 
 Modifications from upstream
 ---------------------------
-- Client interaction is re-pointed at KewlKlient's net.runelite API shim
+- Client interaction is re-pointed at 0xClient's net.runelite API shim
   (java/net/runelite/) instead of RuneLite's injected client.
 - PathTileOverlay's scene-tile enumeration loop reads the bundled
   CollisionMap instead of client Tile objects.
@@ -62,7 +62,7 @@ Three upstream test sources are omitted from java-test/shortestpath/:
 ShortestPathPluginTest.java, PluginMessageTest.java and
 PluginMessageTestPlugin.java. They bootstrap a full RuneLite client
 (RuneLite.main / ExternalPluginManager) to exercise the plugin's own
-integration points; the kewl shim has no RuneLite application to bootstrap,
+integration points; the 0xClient shim has no RuneLite application to bootstrap,
 so those tests have no meaning here. The remaining 270+ upstream tests run
 unchanged, plus a shim smoke test (Lumbridge to Varrock over the bundled
 collision map).

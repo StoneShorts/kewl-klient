@@ -16,7 +16,7 @@ bool DpapiCredentials::StoreSecret(const std::string& reference, std::string_vie
 
     DATA_BLOB input{static_cast<DWORD>(secret.size()), reinterpret_cast<BYTE*>(const_cast<char*>(secret.data()))};
     DATA_BLOB protectedBlob{};
-    if (!CryptProtectData(&input, L"KewlKlient credential", nullptr, nullptr, nullptr,
+    if (!CryptProtectData(&input, L"0xClient credential", nullptr, nullptr, nullptr,
                           CRYPTPROTECT_UI_FORBIDDEN, &protectedBlob)) {
         error = "DPAPI encryption failed";
         return false;

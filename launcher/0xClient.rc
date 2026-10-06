@@ -1,0 +1,4 @@
+// 0xClient.rc -- the launcher's icon. Resource id 1 is what main.cpp loads into the window class
+// (LoadIconW(inst, MAKEINTRESOURCEW(1))), and the lowest-numbered icon is also the one Explorer
+// shows for 0xClient.exe.
+1 ICON "0xClient.ico"

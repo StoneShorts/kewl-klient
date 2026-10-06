@@ -88,7 +88,7 @@ public class PathMapOverlay extends Overlay
 
 		Widget mapContainer = client.getWidget(InterfaceID.Worldmap.MAP_CONTAINER);
 
-		// kewl: DO NOT DRAW while the shim cannot describe the map. Painting over the game's own map is
+		// 0xClient: DO NOT DRAW while the shim cannot describe the map. Painting over the game's own map is
 		// far worse than drawing no path on it -- see worldMapGeometryTrusted for what that looked like
 		// -- so the honest behaviour is to stand down and say why. Note this is also the isHidden()
 		// gate: on this build the world-map GROUP STAYS LOADED WHILE THE MAP IS CLOSED, so the upstream
@@ -238,7 +238,7 @@ public class PathMapOverlay extends Overlay
 
 		Area clipArea = new Area(baseRectangle);
 
-		// kewl: the same absoluteness gate the container passes. These two are SUBTRACTED from the
+		// 0xClient: the same absoluteness gate the container passes. These two are SUBTRACTED from the
 		// clip, so a parent-relative rectangle here does not merely fail to protect the overview panel
 		// -- it punches a hole out of the path somewhere else on the map. Skipping the subtraction
 		// draws path over the overview panel, which is cosmetic; subtracting the wrong rectangle is

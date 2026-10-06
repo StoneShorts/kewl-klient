@@ -1,7 +1,7 @@
 // game.hpp -- reading the game, and doing one thing to it.
 //
 // Everything here is either a guarded memory read or a call into a function the game already has. There
-// is no packet building anywhere in KewlKlient, on purpose: we ask the client to perform a menu action
+// is no packet building anywhere in 0xClient, on purpose: we ask the client to perform a menu action
 // and it builds and sends the packet itself. That means we never have to track the wire protocol, which
 // is the part that changes most often and is hardest to get right.
 #pragma once
@@ -16,7 +16,7 @@
 #include "offsets.hpp"
 #include "log.hpp"
 
-namespace kk {
+namespace oxc {
 
 // ---------------------------------------------------------------------------------------------------
 // Guarded reads. Everything we touch is a pointer we derived, in a process we do not own, while the game
@@ -95,7 +95,7 @@ struct Entity {
 /// client-240-6 (offsets.hpp), and if that slot turned out to be a vtable/refcount pointer the low
 /// 32 bits would ship as a huge per-kind "id". OSRS npc ids are well under 0xFFFF, so anything
 /// outside 0..0xFFFF is certainly not an id and goes out as -1 (Java's "unavailable"). An in-range
-/// wrong value cannot be caught here -- the KEWL_LOG probe in jvm.hpp prints the nearest NPC's raw
+/// wrong value cannot be caught here -- the OXC_LOG probe in jvm.hpp prints the nearest NPC's raw
 /// id next to its name so a Banker (id ~1613..1634) can be checked by eye.
 inline int npcTypeId(std::uintptr_t entity) {
     if (!entity) return -1;
@@ -164,11 +164,11 @@ void forEachEntity(F&& cb) {
                 // prefer the decompile-backed one when it is a plausible plane (0..3), else fall back
                 // to the old read when THAT is plausible, else -1 = unknown. A preference, not a
                 // guarantee: if 0x420 was right and +0x7CC is some other small int, this is now wrong
-                // where it was right. Both raw ints go out on the KEWL_LOG [proj] line; the live
+                // where it was right. Both raw ints go out on the OXC_LOG [proj] line; the live
                 // staircase check (which one steps 0..3) decides -- if raw420 steps and raw7CC does
                 // not, flip the preference here (or collapse back to 0x420). Java's
                 // consumers of -1: AutoWalk walks without the plane filter; the RuneLite shim's
-                // WorldView.getPlane() assumes the ground floor (its javadoc says why); kewl's own
+                // WorldView.getPlane() assumes the ground floor (its javadoc says why); 0xClient's own
                 // entity overlays never read it.
                 const int p7cc = rd<std::int32_t>(e + off::ENTITY_PLANE_COORD, -1);
                 const int p420 = rd<std::int32_t>(e + off::ENTITY_PLANE, -1);
@@ -386,8 +386,8 @@ inline Widget widget(int id) {
     wgt.height = rd<std::int32_t>(w + off::IFTYPE_HEIGHT);
     wgt.hidden = rd<std::uint8_t>(w + off::IFTYPE_HIDDEN) != 0;
     // The text is an NxtString at IFTYPE_TEXT; its flag byte IS IFTYPE_TEXT+0x17 (the constant
-    // offsets.hpp records separately), which the assert pins so the two cannot drift apart.
-    static_assert(off::IFTYPE_TEXT_FLAG == off::IFTYPE_TEXT + 0x17, "IfType text flag is the NxtString's +0x17");
+    // offsets.hpp records separately). Offsets are runtime values now (loaded per build from
+    // offsets/client-<build>.json), so the loader checks the pair instead of a static_assert.
     // 4096, not the 200-byte name bound: a dialogue or chatbox line over 200 bytes used to come back
     // "" with no error, so a ported plugin reading it saw an EMPTY widget rather than a long one
     // (review 2026-09-06). readable() is still the real guard on the pointer.
@@ -822,7 +822,7 @@ inline WidgetAbs widgetAbs(int id) {
 }
 
 /// The whole chain as one line, so a wrong answer says WHICH link is wrong instead of just being
-/// wrong. Diagnostic only -- once a session under KEWL_LOG, never per frame:
+/// wrong. Diagnostic only -- once a session under OXC_LOG, never per frame:
 ///
 ///   161:30 (53,8) 152x152 <- 161:22 (1090,4) 224x160 <- 161:0 (0,0) 1314x900
 ///     => abs (1143,12) 152x152 via parentId, depth 2, complete
@@ -899,7 +899,12 @@ inline int varp(int id) {
 inline std::uintptr_t containerNode(int containerId) {
     std::int32_t mask = rd<std::int32_t>(moduleBase() + off::CONTAINER_MASK);
     if (mask <= 0 || mask > 0x10000) return 0;               // never a real bucket count this big
-    std::uintptr_t buckets = moduleBase() + off::CONTAINER_BUCKETS;
+    // The global at CONTAINER_BUCKETS is a POINTER CELL to the heap-allocated bucket array, not the
+    // array itself: the client's own lookup is `mov rdx,[CONTAINER_BUCKETS]; mov rax,[rdx+idx*8]`
+    // (240-6 FUN_140032610, 241-3 the same shape). An earlier reading of this as an inline array
+    // was never confirmed against a running game.
+    std::uintptr_t buckets = rdp(moduleBase() + off::CONTAINER_BUCKETS);
+    if (!buckets) return 0;
     std::uintptr_t node = rdp(buckets + static_cast<std::uintptr_t>(static_cast<std::uint32_t>(containerId) % mask) * 8);
     std::uintptr_t sentinel = rdp(buckets + static_cast<std::uintptr_t>(mask) * 8);
     for (int guard = 0; node && node != sentinel && guard < 512; ++guard) {
@@ -950,7 +955,7 @@ inline int containerQty(int containerId, int slot) {
 /// above the feet by however far the ground is from 0 at that tile. The live trace (2026-09-05)
 /// showed the camera height varying ~50 units between nearby spots at fixed pitch/zoom, i.e. the
 /// ground there is not flat and not proven to be at 0. KNOWN LIMITATION until a tile-height reader
-/// exists; the KEWL_LOG probe in jvm.hpp sweeps candidate heights so the residual can be measured.
+/// exists; the OXC_LOG probe in jvm.hpp sweeps candidate heights so the residual can be measured.
 ///
 /// Returns false when the point is behind the camera or otherwise off in the weeds. Do not draw it.
 inline bool projectFine(int fineX, int fineHeight, int fineY, float& outX, float& outY) {
@@ -987,18 +992,18 @@ inline bool project(int sceneX, int sceneY, float& outX, float& outY) {
 ///
 /// MUST be called from the game thread. Calling it from our own thread works most of the time and then
 /// crashes at the worst moment, so the overlay queues actions and the plugin tick runs them on a timer
-/// that is slow enough not to matter. If you make KewlKlient do anything fancier than this, hook a
+/// that is slow enough not to matter. If you make 0xClient do anything fancier than this, hook a
 /// per-frame function and run actions from there.
 inline bool doAction(int sceneX, int sceneY, int opcode, int targetId) {
     std::uintptr_t c = clientObj();
     if (!c) return false;
     if (off::DO_ACTION == 0) {   // DO_ACTION 0 = not derived this build; acting would crash
         // One line, ever: plugins tick many times a second and this drop is a build problem, not a
-        // per-call event. Goes to stdout, which KEWL_LOG redirects to a file (dllmain.cpp).
+        // per-call event. Goes to stdout, which OXC_LOG redirects to a file (dllmain.cpp).
         static bool warned = false;
         if (!warned) {
             warned = true;
-            kk::logf("[kewl] doAction dropped: DO_ACTION not derived for this build\n");
+            oxc::logf("[oxclient] doAction dropped: DO_ACTION not derived for this build\n");
             std::fflush(stdout);
         }
         return false;
@@ -1029,4 +1034,4 @@ inline bool interactNpc(int uid, int opcode) {
     return doAction(target.sceneX, target.sceneY, opcode, uid);
 }
 
-}  // namespace kk
+}  // namespace oxc

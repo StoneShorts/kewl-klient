@@ -1,12 +1,12 @@
 // Shim of net.runelite.api.WorldView (BSD-2, RuneLite), cut to what the vendored coord classes and
 // the ported plugin call.
 //
-// There is one world view here -- the loaded scene around the player, via kewl.api.Game. Instance
+// There is one world view here -- the loaded scene around the player, via oxclient.api.Game. Instance
 // views (raids, boats) are not readable yet, so isInstance() is false and the template chunks are
 // empty: WorldPointUtil.fromLocalInstance collapses to plain world coordinates.
 package net.runelite.api;
 
-import kewl.api.Game;
+import oxclient.api.Game;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 
@@ -50,9 +50,9 @@ public class WorldView
 	 *  must not treat -1 as a floor, so nothing draws at a wrong height") bought nothing here: with
 	 *  no heightmap (Perspective.getTileHeight is 0) everything is drawn at datum height anyway.
 	 *  Cost of the assumption: upstairs, with an unreadable plane, the path is computed from the
-	 *  ground-floor tile under the player. {@code kewl.rl.AutoWalk} reads {@code Game.me().plane()}
+	 *  ground-floor tile under the player. {@code oxclient.rl.AutoWalk} reads {@code Game.me().plane()}
 	 *  directly and keeps its own -1 handling (walks without the plane filter). NOT VERIFIED which
-	 *  case fires live -- the strip's "you: x, y plane N" and the KEWL_LOG [proj] line show it. */
+	 *  case fires live -- the strip's "you: x, y plane N" and the OXC_LOG [proj] line show it. */
 	public int getPlane()
 	{
 		int p = Game.me().plane();
@@ -88,7 +88,7 @@ public class WorldView
 	 * every coordinate is correct, which is why nothing has caught it.</p>
 	 *
 	 * <p>EXACT NEXT STEP. Two offsets, and the anchor for the deob is already in the tree: the native
-	 * behind {@code kewl.Natives.sceneBase()} reads this world view's base X/Y, and both the instance
+	 * behind {@code oxclient.Natives.sceneBase()} reads this world view's base X/Y, and both the instance
 	 * flag and the template-chunk array are fields of that SAME structure. Add them to
 	 * {@code client/offsets.hpp}, expose the chunk array through a native next to {@code sceneBase},
 	 * and this method plus {@link #getInstanceTemplateChunks()} become plain reads with no other
@@ -104,7 +104,7 @@ public class WorldView
 				+ " marker there too. Outside instances every coordinate is correct, which is why it"
 				+ " goes unnoticed. Two offsets close it and the anchor is already in the tree: the"
 				+ " instance flag and the [4][13][13] template-chunk array are fields of the SAME world"
-				+ " view structure kewl.Natives.sceneBase() already reads base X/Y from. The flag alone"
+				+ " view structure oxclient.Natives.sceneBase() already reads base X/Y from. The flag alone"
 				+ " is not enough -- WorldPointUtil.fromLocalInstance needs the chunk array to"
 				+ " translate with");
 		return false;
@@ -151,7 +151,7 @@ public class WorldView
 	 * height, and keeps the one nearest the cursor -- within a tile-sized radius, so a cursor over
 	 * UI or the sky yields null rather than the closest tile anyway.
 	 *
-	 * <p>One bypass: while kewl's own right-click popup menu is open the cursor is over one of its
+	 * <p>One bypass: while 0xClient's own right-click popup menu is open the cursor is over one of its
 	 * rows, not over the scene, so the nearest-tile scan below would name the row's neighbour (rows
 	 * sit 22 px apart) or nothing at all. For the frames {@code ClientState.isMenuOpen()} is true
 	 * this returns the tile MenuPopup captured at the moment the right-click landed -- parked in the
@@ -170,7 +170,7 @@ public class WorldView
 			return state.getMenuOpenedTile();
 		}
 
-		int frame = kewl.KewlKlient.frame();
+		int frame = oxclient.OxClient.frame();
 		if (cachedTileFrame == frame)
 		{
 			return cachedTile;
@@ -218,7 +218,7 @@ public class WorldView
 		return cachedTile;
 	}
 
-	/** Frame token and result of the last tile-under-cursor scan; kewl's frame counter, not game state. */
+	/** Frame token and result of the last tile-under-cursor scan; 0xClient's frame counter, not game state. */
 	private int cachedTileFrame = -1;
 	private Tile cachedTile;
 
@@ -252,14 +252,14 @@ public class WorldView
 
 	public IndexedObjectSet<? extends NPC> npcs()
 	{
-		ActorTable.refresh(kewl.KewlKlient.frame());
+		ActorTable.refresh(oxclient.OxClient.frame());
 		return new IndexedObjectSet<>(ActorTable.npcs(), ActorTable::npcByUid);
 	}
 
 	/** Includes the local player, as upstream. */
 	public IndexedObjectSet<? extends Player> players()
 	{
-		ActorTable.refresh(kewl.KewlKlient.frame());
+		ActorTable.refresh(oxclient.OxClient.frame());
 		return new IndexedObjectSet<>(ActorTable.players(), ActorTable::playerByUid);
 	}
 }

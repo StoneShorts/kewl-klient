@@ -1,13 +1,13 @@
 // Shim of net.runelite.api.Menu (BSD-2, RuneLite).
 //
-// Entries created here are held by the shim. kewl.rl.MenuPopup collects them on a right-click and
+// Entries created here are held by the shim. oxclient.rl.MenuPopup collects them on a right-click and
 // draws them itself; a click fires the stored onClick. Creating one is harmless either way -- an
 // entry nobody collects just queues.
 //
 // THEY ARE NOT INJECTED INTO THE GAME'S MENU, and this header said they would be ("the menu() native
 // (Phase D) injects them into the client's own right-click menu") until 2026-09-07. That plan is not
 // the one to build. The game's menu was derived from the binary that day -- see the header of
-// kewl/rl/MenuPopup.java for the chain and the instruction behind every offset -- and the finding is
+// oxclient/rl/MenuPopup.java for the chain and the instruction behind every offset -- and the finding is
 // that APPENDING to it is the riskiest way to get what it buys: an entry is 336 bytes of which 24 are
 // understood, both its strings are SSO/heap unions, and the node vector reallocates out of a pool we
 // do not own. The client's own AddEntry exists (it is bound to the client's Lua layer) but is not

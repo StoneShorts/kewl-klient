@@ -1,5 +1,5 @@
 // Minimal stand-in for javax.inject.Inject (JSR-330), which Hub plugins annotate constructors and
-// fields with. kewl.rl.Injector understands it; there is no real DI container here.
+// fields with. oxclient.rl.Injector understands it; there is no real DI container here.
 package javax.inject;
 
 import java.lang.annotation.Documented;

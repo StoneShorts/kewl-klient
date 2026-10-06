@@ -1,6 +1,6 @@
 // Shim of net.runelite.client.input.KeyManager (BSD-2, RuneLite).
 //
-// KewlKlient polls F1-F8 from the game window; the bridge turns those into KeyEvents and calls the
+// OxClient polls F1-F8 from the game window; the bridge turns those into KeyEvents and calls the
 // registered listeners. registerKeyListener/registerKeyListener only keep lists.
 package net.runelite.client.input;
 

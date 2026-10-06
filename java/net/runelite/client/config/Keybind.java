@@ -1,7 +1,7 @@
 // Shim of net.runelite.client.config.Keybind (BSD-2, RuneLite), cut to the used surface: NOT_SET,
 // matches(KeyEvent) for the "clear path" hotkey listener, and the getters the config panel would read.
 //
-// KewlKlient only has F1-F8 hotkeys, so the panel edits this as an F-index and the bridge synthesises
+// OxClient only has F1-F8 hotkeys, so the panel edits this as an F-index and the bridge synthesises
 // KeyEvents from the game's key polling. Any other key code matches nothing.
 package net.runelite.client.config;
 

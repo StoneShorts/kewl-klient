@@ -113,7 +113,7 @@ public class PathTileOverlay extends Overlay
 	private void renderCollisionMap(Graphics2D graphics)
 	{
 		// PORT EDIT: upstream walks the client's scene-tile array to enumerate tiles. The shim's
-		// scene is empty (reading the live tile array is an offset kewl does not have), so this walks
+		// scene is empty (reading the live tile array is an offset 0xClient does not have), so this walks
 		// the 104x104 scene coordinates directly -- same tiles, no scene read.
 		CollisionMap map = plugin.getMap();
 		WorldView worldView = client.getTopLevelWorldView();
@@ -165,7 +165,7 @@ public class PathTileOverlay extends Overlay
 		playerTileLabelOffset = 0;
 		// Diagnostic trail for the live pass (2026-09-06): one line per ~10 s saying whether this
 		// overlay has a path to draw at all, gated like the DLL's probes.
-		if (System.getenv("KEWL_LOG") != null && (diagFrames++ % 300) == 0)
+		if (System.getenv("OXC_LOG") != null && (diagFrames++ % 300) == 0)
 		{
 			System.out.println("[shortestpath] tile overlay: drawTiles=" + plugin.drawTiles
 				+ " pathfinder=" + (plugin.getPathfinder() == null ? "null" : "set")

@@ -22,9 +22,9 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-// Upstream's four positions, unchanged. toString is the display name: kewl's enum combo (Swing
+// Upstream's four positions, unchanged. toString is the display name: 0xClient's enum combo (Swing
 // JComboBox and the ImGui strip alike) shows and persists the option's toString, so this is what
-// the panel reads -- see kewl.profile.SettingCodec.
+// the panel reads -- see oxclient.profile.SettingCodec.
 package net.runelite.client.plugins.playerindicators;
 
 public enum PlayerNameLocation

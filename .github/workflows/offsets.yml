@@ -1,0 +1,88 @@
+# Keeps offsets/ current without anyone noticing Jagex updated the game.
+#
+# Every few hours: ask the CDN what build is in production. If there is no offsets/client-<build>.json
+# for it yet, download the build, run Ghidra headless with tools/ghidra_scripts/DeriveOffsets.java,
+# merge with the previous build's file (tools/update/update.py does all of that) and open a pull
+# request with the result and the diff. The DLL fetches the merged file from the main branch on first
+# start, so merging that PR is the release.
+#
+# Nothing here is a secret: the game binary is public, Ghidra is free, and the derivation prints its
+# evidence. A maintainer still reads the diff before merging, because a value the script could not
+# derive is carried from the previous build and labelled, and that label is what to review.
+name: offsets
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Client build to derive (e.g. 241-3). Empty = current production build."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  derive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Which build is live, and do we have it?
+        id: probe
+        run: |
+          set -e
+          if [ -n "${{ github.event.inputs.build }}" ]; then
+            build="${{ github.event.inputs.build }}"
+          else
+            build=$(python3 tools/update/fetch_client.py --version)
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          if [ -f "offsets/client-$build.json" ]; then
+            echo "have=true" >> "$GITHUB_OUTPUT"
+            echo "offsets/client-$build.json already exists; nothing to do"
+          else
+            echo "have=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Java 21 for Ghidra
+        if: steps.probe.outputs.have == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Ghidra
+        if: steps.probe.outputs.have == 'false'
+        run: |
+          set -e
+          url=$(curl -sL https://api.github.com/repos/NationalSecurityAgency/ghidra/releases/latest | python3 -c "import sys,json; print([a['browser_download_url'] for a in json.load(sys.stdin)['assets'] if a['name'].endswith('.zip')][0])")
+          curl -sL "$url" -o ghidra.zip
+          mkdir -p "$HOME/ghidra" && unzip -q ghidra.zip -d "$HOME/ghidra"
+          echo "GHIDRA_HOME=$(ls -d $HOME/ghidra/ghidra_*)" >> "$GITHUB_ENV"
+
+      - name: Derive offsets
+        if: steps.probe.outputs.have == 'false'
+        run: |
+          set -e
+          python3 tools/update/update.py --build "${{ steps.probe.outputs.build }}" 2> derive.log
+          cat derive.log
+
+      - name: Rebuild the wiki
+        if: steps.probe.outputs.have == 'false'
+        run: python3 tools/wiki/build_wiki.py
+
+      - name: Open a pull request
+        if: steps.probe.outputs.have == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: offsets/client-${{ steps.probe.outputs.build }}
+          title: "Offsets for client-${{ steps.probe.outputs.build }}"
+          commit-message: "Offsets for client-${{ steps.probe.outputs.build }}"
+          body-path: derive.log
+          add-paths: |
+            offsets/client-${{ steps.probe.outputs.build }}.json
+            wiki/index.html

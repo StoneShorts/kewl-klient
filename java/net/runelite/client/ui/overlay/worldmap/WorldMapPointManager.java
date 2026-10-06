@@ -2,7 +2,7 @@
 // collection of markers plugins add (Shortest Path's target marker is the only user).
 //
 // RuneLite binds this as a Guice singleton and its world-map overlay renders the points; here
-// kewl.rl.OverlayRenderer does the rendering, and it is outside the injector graph, so it cannot be
+// oxclient.rl.OverlayRenderer does the rendering, and it is outside the injector graph, so it cannot be
 // handed the instance the injector built. The constructor therefore records itself and the renderer
 // reads that instance back through get().
 package net.runelite.client.ui.overlay.worldmap;

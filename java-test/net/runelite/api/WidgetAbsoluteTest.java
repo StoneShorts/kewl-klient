@@ -4,7 +4,7 @@
 // Background. Every widget position in this shim was parent-relative pretending to be absolute: a
 // single packed id took the component's stored x/y as a canvas position, so the minimap reported
 // (53,8) while it visibly sat near x=1143, and both map overlays stood down rather than draw in the
-// wrong corner. kewl.Natives.widgetAbs sums the parent chain in C++ now, through a parent link that is
+// wrong corner. oxclient.Natives.widgetAbs sums the parent chain in C++ now, through a parent link that is
 // DERIVED at runtime from the widget tree rather than hardcoded -- which means the derivation can come
 // back undecided, and the two flags below are how that undecidedness reaches a caller. Getting this
 // predicate wrong is exactly the bug the feature exists to prevent, so it is pinned here.

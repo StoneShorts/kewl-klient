@@ -1,7 +1,7 @@
-// Shim of net.runelite.api.Client (BSD-2, RuneLite) -- a concrete class backed by kewl.api and the
+// Shim of net.runelite.api.Client (BSD-2, RuneLite) -- a concrete class backed by oxclient.api and the
 // natives, not an injected client.
 //
-// Everything kewl can already read (player, skills, tick count, scene) is wired through. Everything
+// Everything 0xClient can already read (player, skills, tick count, scene) is wired through. Everything
 // that needs a new memory offset (varps, item containers, widgets, world map, menu, game state,
 // camera) delegates to net.runelite.api.ClientState, which holds honest defaults until each offset is
 // re-derived; each method there names the offset it is waiting for.
@@ -28,9 +28,9 @@ public class Client
 	public static final Client INSTANCE = new Client();
 
 	private final ClientThread clientThread = new ClientThread();
-	// Live view: the supplier re-reads kewl's per-frame Local, so getLocalPlayer() always answers with
+	// Live view: the supplier re-reads 0xClient's per-frame Local, so getLocalPlayer() always answers with
 	// THIS frame's position, not a snapshot taken before the game ever refreshed.
-	private final Player player = new Player(() -> kewl.api.Game.me());
+	private final Player player = new Player(() -> oxclient.api.Game.me());
 	private final WorldView topLevelWorldView = WorldView.TOP_LEVEL;
 	private final ClientState state = new ClientState();
 
@@ -56,7 +56,7 @@ public class Client
 	 */
 	public Player getLocalPlayer()
 	{
-		return kewl.api.Game.me().exists() ? player : null;
+		return oxclient.api.Game.me().exists() ? player : null;
 	}
 
 	/**
@@ -71,7 +71,7 @@ public class Client
 
 	// -- actors ------------------------------------------------------------------------------------
 	//
-	// Backed by kewl.api.Game.npcs()/players() through net.runelite.api.ActorTable, which keeps one
+	// Backed by oxclient.api.Game.npcs()/players() through net.runelite.api.ActorTable, which keeps one
 	// NPC/Player object per handle across frames (plugins hold them between NpcSpawned and
 	// NpcDespawned). getCachedNPCs()/getCachedPlayers() (deprecated upstream) are deliberately NOT
 	// provided: they are arrays indexed by client slot, and the uid range on this build is unknown.
@@ -79,14 +79,14 @@ public class Client
 	/** Every NPC in this frame's snapshot, in the client's table order. */
 	public List<NPC> getNpcs()
 	{
-		ActorTable.refresh(kewl.KewlKlient.frame());
+		ActorTable.refresh(oxclient.OxClient.frame());
 		return ActorTable.npcs();
 	}
 
 	/** Every player in this frame's snapshot, the LOCAL player included (first), as upstream. */
 	public List<Player> getPlayers()
 	{
-		ActorTable.refresh(kewl.KewlKlient.frame());
+		ActorTable.refresh(oxclient.OxClient.frame());
 		return ActorTable.players();
 	}
 
@@ -114,19 +114,19 @@ public class Client
 
 	public int getRealSkillLevel(Skill skill)
 	{
-		kewl.api.Skill k = toKewl(skill);
-		return k == null ? 0 : kewl.api.Skills.level(k);
+		oxclient.api.Skill k = toOxc(skill);
+		return k == null ? 0 : oxclient.api.Skills.level(k);
 	}
 
 	public int getBoostedSkillLevel(Skill skill)
 	{
-		kewl.api.Skill k = toKewl(skill);
-		return k == null ? 0 : kewl.api.Skills.effective(k);
+		oxclient.api.Skill k = toOxc(skill);
+		return k == null ? 0 : oxclient.api.Skills.effective(k);
 	}
 
 	public int getTotalLevel()
 	{
-		return kewl.api.Skills.totalLevel();
+		return oxclient.api.Skills.totalLevel();
 	}
 
 	// -- vars (ClientState holds the values; the varps native fills them) ---------------------------
@@ -228,7 +228,7 @@ public class Client
 		{ 10662, 10663, 10664, 10665, 10666, 10667 };
 
 	/**
-	 * The server tick count in RuneLite's semantics (one per 600ms game tick), CONVERTED from kewl's
+	 * The server tick count in RuneLite's semantics (one per 600ms game tick), CONVERTED from 0xClient's
 	 * cycle counter by dividing by 30.
 	 *
 	 * <p>Registered as a gap, and it is the subtlest kind in the shim: this returns a plausible
@@ -248,7 +248,7 @@ public class Client
 	 */
 	public int getTickCount()
 	{
-		final int cycle = kewl.api.Game.me().cycle();
+		final int cycle = oxclient.api.Game.me().cycle();
 		measureCycleCadence(cycle, System.nanoTime());
 		ShimSupport.note("Client.getTickCount", ShimSupport.Kind.NEEDS_OFFSET,
 			"is DERIVED, not read: cycle()/30, which assumes the cycle counter advances once per 20ms."
@@ -658,22 +658,22 @@ public class Client
 		return false;
 	}
 
-	/** Convenience for the bridge: refresh the frame snapshot kewl already read this frame. */
+	/** Convenience for the bridge: refresh the frame snapshot 0xClient already read this frame. */
 	public static void newFrame()
 	{
-		kewl.api.Skills.newFrame();
+		oxclient.api.Skills.newFrame();
 	}
 
 	/**
 	 * The two Skill enums share their constant names; this is the whole mapping. Fail-soft on purpose:
-	 * if the shim enum grows a constant the kewl enum has not caught up with, callers get a 0 rather
+	 * if the shim enum grows a constant the 0xClient enum has not caught up with, callers get a 0 rather
 	 * than an IllegalArgumentException from the middle of a refresh sweep.
 	 */
-	private static kewl.api.Skill toKewl(Skill skill)
+	private static oxclient.api.Skill toOxc(Skill skill)
 	{
 		try
 		{
-			return kewl.api.Skill.valueOf(skill.name());
+			return oxclient.api.Skill.valueOf(skill.name());
 		}
 		catch (IllegalArgumentException e)
 		{

@@ -23,7 +23,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-// Ported from RuneLite's NPC Indicators (net.runelite.client.plugins.npchighlight) onto the kewl
+// Ported from RuneLite's NPC Indicators (net.runelite.client.plugins.npchighlight) onto the 0xClient
 // shim. Group and key names are upstream's, so a real RuneLite profile lines up.
 //
 // OMITTED (not stubbed -- a dead control in the panel would read as broken), each naming what it
@@ -35,7 +35,7 @@
 //                                       walk-off-screen despawn would start a bogus timer
 //   Tag / Untag / Tag-All / Tag-Color menu actions and per-name highlightcolor_ entries
 //                                       menu actions cannot be added to the game's menu (see
-//                                       kewl.rl.MenuPopup for the phase-2 approximation)
+//                                       oxclient.rl.MenuPopup for the phase-2 approximation)
 package net.runelite.client.plugins.npchighlight;
 
 import java.awt.Color;
@@ -133,7 +133,7 @@ public interface NpcIndicatorsConfig extends Config
 		return true;
 	}
 
-	// kewl extension, not in upstream: RuneLite only ever highlights the names on the list, which
+	// 0xClient extension, not in upstream: RuneLite only ever highlights the names on the list, which
 	// draws nothing on a fresh install. Here the plugin doubles as the client's default NPC visuals
 	// (2026-09-06), so by default every NPC is drawn and the list narrows it down once you clear this.
 	@ConfigItem(
@@ -147,10 +147,10 @@ public interface NpcIndicatorsConfig extends Config
 		return true;
 	}
 
-	// kewl extension, not in upstream, and the reason "Highlight every NPC" above can say "in range":
+	// 0xClient extension, not in upstream, and the reason "Highlight every NPC" above can say "in range":
 	// upstream never needed a cap because it only ever draws the handful of NPCs on your list, while
 	// the sweep mode draws whatever is loaded -- a 104x104 scene, i.e. a wall of hulls in a city. The
-	// worked example this plugin replaces (kewl.plugins.NpcVisuals) capped at 20 tiles, so the sweep
+	// worked example this plugin replaces (oxclient.plugins.NpcVisuals) capped at 20 tiles, so the sweep
 	// does too. An NPC you asked for BY NAME OR ID is never range-limited: if you typed it, you want
 	// it wherever it is.
 	@Range(min = 1, max = 60)
@@ -204,7 +204,7 @@ public interface NpcIndicatorsConfig extends Config
 		return new Color(0, 255, 255, 20);
 	}
 
-	// @Range added for the shim: kewl draws ints as sliders, and an unbounded width slider is unusable.
+	// @Range added for the shim: 0xClient draws ints as sliders, and an unbounded width slider is unusable.
 	@Range(min = 1, max = 8)
 	@ConfigItem(
 		position = 9,

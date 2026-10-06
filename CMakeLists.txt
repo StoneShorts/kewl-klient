@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(KewlKlient CXX)
+project(0xClient CXX RC)   # RC: launcher/0xClient.rc carries the window and exe icon
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,11 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # The game is 64-bit, so we must be too. A 32-bit DLL will simply be refused at injection time, which
 # looks like "nothing happened" and wastes an evening.
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-  message(FATAL_ERROR "KewlKlient must be built 64-bit -- the game is x64 and will reject a 32-bit DLL.")
+  message(FATAL_ERROR "0xClient must be built 64-bit -- the game is x64 and will reject a 32-bit DLL.")
 endif()
 
 # JNI headers. We only need the headers to compile; jvm.dll is loaded at runtime from the path in
-# kewlklient.ini, so the machine that BUILDS this does not have to be the one that runs it.
+# 0xclient.ini, so the machine that BUILDS this does not have to be the one that runs it.
 find_package(JNI QUIET)
 if(NOT JNI_FOUND)
   # Cross-compiling with llvm-mingw (see tools/wine.md): FindJNI cannot work here -- there is no
@@ -39,10 +39,10 @@ typedef signed char jbyte;
   message(STATUS "JNI (cross, generated jni_md.h): ${JNI_INCLUDE_DIRS}")
 endif()
 
-# TARGET NAMES MUST NOT DIFFER ONLY BY CASE. They used to be `kewlklient` and `KewlKlient`, which the
+# TARGET NAMES MUST NOT DIFFER ONLY BY CASE. They used to be `0xclient` and `0xClient`, which the
 # Makefile and Ninja generators handle fine -- but the Visual Studio generator writes one .vcxproj per
-# target, named after it, and Windows filenames are case-insensitive. `KewlKlient.vcxproj` therefore
-# OVERWROTE `kewlklient.vcxproj`, both targets became the launcher, and no DLL was ever produced. The
+# target, named after it, and Windows filenames are case-insensitive. `0xClient.vcxproj` therefore
+# OVERWROTE `0xclient.vcxproj`, both targets became the launcher, and no DLL was ever produced. The
 # build still reported success, because from MSBuild's point of view both projects built perfectly.
 #
 # The internal names below are distinct; OUTPUT_NAME keeps the shipped filenames exactly as they were.
@@ -57,77 +57,78 @@ endif()
 # both. imgui_demo.cpp is deliberately absent -- it drags in half of the API surface we do not use
 # and its ShowDemoWindow is exactly what a stray Ctrl+click should not be able to reach.
 # ---------------------------------------------------------------------------------------------------
-add_library(kewl_imgui OBJECT
+add_library(oxc_imgui OBJECT
     third_party/imgui/imgui.cpp
     third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp
     third_party/imgui/imgui_widgets.cpp
     client/imgui_sw.cpp)
-target_include_directories(kewl_imgui PUBLIC third_party/imgui client)
+target_include_directories(oxc_imgui PUBLIC third_party/imgui client)
 
 # ---------------------------------------------------------------------------------------------------
-# kewlklient.dll -- injected into the game
+# 0xclient.dll -- injected into the game
 # ---------------------------------------------------------------------------------------------------
-add_library(kewl_dll SHARED client/dllmain.cpp)
-target_include_directories(kewl_dll PRIVATE client ${JNI_INCLUDE_DIRS})
+add_library(oxc_dll SHARED client/dllmain.cpp)
+target_include_directories(oxc_dll PRIVATE client ${JNI_INCLUDE_DIRS})
 # version: GetFileVersionInfoW, for the build fingerprint check against the host exe (offsets.hpp).
-target_link_libraries(kewl_dll PRIVATE user32 gdi32 version kewl_imgui)
-set_target_properties(kewl_dll PROPERTIES PREFIX "" OUTPUT_NAME "kewlklient")
+target_link_libraries(oxc_dll PRIVATE user32 gdi32 version winhttp oxc_imgui)
+set_target_properties(oxc_dll PROPERTIES PREFIX "" OUTPUT_NAME "0xclient")
 
 if(MINGW)
   # llvm-mingw links libc++/libunwind as DLLs by default, which would ship two extra runtime files
-  # beside kewlklient.dll. -static folds them in and keeps the dist one DLL, same as the MSVC build.
-  target_link_options(kewl_dll PRIVATE -static)
+  # beside 0xclient.dll. -static folds them in and keeps the dist one DLL, same as the MSVC build.
+  target_link_options(oxc_dll PRIVATE -static)
 endif()
 
 # ---------------------------------------------------------------------------------------------------
-# KewlKlient.exe -- the launcher with the button
+# 0xClient.exe -- the launcher with the button
 # ---------------------------------------------------------------------------------------------------
 # WebView2 comes from the official Microsoft NuGet package so the SDK version is reproducible.
 include(FetchContent)
-set(KEWL_WEBVIEW2_VERSION "1.0.3537.50" CACHE STRING "Microsoft WebView2 SDK version")
+set(OXC_WEBVIEW2_VERSION "1.0.3537.50" CACHE STRING "Microsoft WebView2 SDK version")
 FetchContent_Declare(webview2_sdk
-    URL "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/${KEWL_WEBVIEW2_VERSION}")
+    URL "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/${OXC_WEBVIEW2_VERSION}")
 FetchContent_MakeAvailable(webview2_sdk)
-find_path(KEWL_WEBVIEW2_INCLUDE WebView2.h PATHS "${webview2_sdk_SOURCE_DIR}/build/native/include" NO_DEFAULT_PATH)
-find_library(KEWL_WEBVIEW2_LOADER WebView2LoaderStatic PATHS "${webview2_sdk_SOURCE_DIR}/build/native/x64" NO_DEFAULT_PATH)
-if(NOT KEWL_WEBVIEW2_INCLUDE OR NOT KEWL_WEBVIEW2_LOADER)
+find_path(OXC_WEBVIEW2_INCLUDE WebView2.h PATHS "${webview2_sdk_SOURCE_DIR}/build/native/include" NO_DEFAULT_PATH)
+find_library(OXC_WEBVIEW2_LOADER WebView2LoaderStatic PATHS "${webview2_sdk_SOURCE_DIR}/build/native/x64" NO_DEFAULT_PATH)
+if(NOT OXC_WEBVIEW2_INCLUDE OR NOT OXC_WEBVIEW2_LOADER)
   message(FATAL_ERROR "The WebView2 SDK package is missing WebView2.h or WebView2LoaderStatic.lib")
 endif()
-add_executable(kewl_launcher WIN32
+add_executable(oxc_launcher WIN32
     launcher/main.cpp
+    launcher/0xClient.rc
     launcher/accounts/account_store.cpp
     launcher/accounts/dpapi_credentials.cpp
     launcher/accounts/http_client.cpp
     launcher/accounts/jagex_auth.cpp
     launcher/accounts/jagex_auth_window.cpp
     launcher/accounts/osclient_launcher.cpp)
-target_include_directories(kewl_launcher PRIVATE launcher "${KEWL_WEBVIEW2_INCLUDE}")
-target_link_libraries(kewl_launcher PRIVATE user32 gdi32 ole32 crypt32 bcrypt winhttp "${KEWL_WEBVIEW2_LOADER}" kewl_imgui)
-set_target_properties(kewl_launcher PROPERTIES OUTPUT_NAME "KewlKlient")
+target_include_directories(oxc_launcher PRIVATE launcher "${OXC_WEBVIEW2_INCLUDE}")
+target_link_libraries(oxc_launcher PRIVATE user32 gdi32 ole32 crypt32 bcrypt winhttp "${OXC_WEBVIEW2_LOADER}" oxc_imgui)
+set_target_properties(oxc_launcher PROPERTIES OUTPUT_NAME "0xClient")
 
 if(MINGW)
-  # Same story as kewl_dll above, mirrored here: the launcher uses std::string/std::vector, and an
+  # Same story as oxc_dll above, mirrored here: the launcher uses std::string/std::vector, and an
   # exe that imports libc++.dll/libunwind.dll fails to LOAD under Wine unless those DLLs happen to
   # be in the prefix (probed: "err:module:import_dll Library libc++.dll ... needed by
-  # KewlKlient.exe"). The old launcher got away without this only because it touched no C++
+  # 0xClient.exe"). The old launcher got away without this only because it touched no C++
   # runtime type with a symbol to resolve.
-  target_link_options(kewl_launcher PRIVATE -static)
+  target_link_options(oxc_launcher PRIVATE -static)
 endif()
 
 # Drop both next to each other so the launcher can find the DLL by sitting beside it, and so the DLL
-# can find kewlklient.jar the same way. Gradle passes KEWL_DIST; a bare cmake run gets a sane default.
-if(NOT DEFINED KEWL_DIST)
-  set(KEWL_DIST "${CMAKE_BINARY_DIR}/dist")
+# can find 0xclient.jar the same way. Gradle passes OXC_DIST; a bare cmake run gets a sane default.
+if(NOT DEFINED OXC_DIST)
+  set(OXC_DIST "${CMAKE_BINARY_DIR}/dist")
 endif()
 
 # Multi-config generators (Visual Studio, Xcode) APPEND the config name to the plain
 # RUNTIME_OUTPUT_DIRECTORY, so setting only that puts the binaries in dist/Release while the jar and
 # the ini land in dist/ -- the DLL then loads and cannot find the jar, which surfaces as
-# "kewl/KewlKlient not found" and looks like a Java problem. Setting the per-config variables as well
+# "oxclient/OxClient not found" and looks like a Java problem. Setting the per-config variables as well
 # suppresses that suffix, so every generator agrees on one directory.
 foreach(cfg "" _DEBUG _RELEASE _RELWITHDEBINFO _MINSIZEREL)
-  set_target_properties(kewl_dll kewl_launcher PROPERTIES
-      RUNTIME_OUTPUT_DIRECTORY${cfg} "${KEWL_DIST}"
-      LIBRARY_OUTPUT_DIRECTORY${cfg} "${KEWL_DIST}")
+  set_target_properties(oxc_dll oxc_launcher PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY${cfg} "${OXC_DIST}"
+      LIBRARY_OUTPUT_DIRECTORY${cfg} "${OXC_DIST}")
 endforeach()

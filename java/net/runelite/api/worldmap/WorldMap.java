@@ -1,6 +1,6 @@
-// Shim of net.runelite.api.worldmap.WorldMap (BSD-2, RuneLite), adapted to KewlKlient.
+// Shim of net.runelite.api.worldmap.WorldMap (BSD-2, RuneLite), adapted to OxClient.
 //
-// kewl.rl.Events pushes the map's centre here every frame, read from the native world-map object: the
+// oxclient.rl.Events pushes the map's centre here every frame, read from the native world-map object: the
 // centre tile in world tiles is WM_ORIGIN + 48, which is the same quantity as 8 * WM_CENTRE (the
 // scroll ints are in 8-tile units -- see the WM_ findings in client/offsets.hpp). isLive() says
 // whether that data has actually arrived: the marker renderer and the plugin's map-click path gate on
@@ -75,7 +75,7 @@
 // checked rather than believed.
 //
 // The other way in is a HUMAN reading, {@link #setPixelsPerTile} /
-// -Dkewl.worldmap.pixelsPerTile=<value>. {@link #humanBootstrapAction} is the single sentence that
+// -Doxclient.worldmap.pixelsPerTile=<value>. {@link #humanBootstrapAction} is the single sentence that
 // says what a person has to do; it is what every uncalibrated refusal ends with, because a refusal
 // that does not name its one unblocking action is just a complaint.
 //
@@ -136,7 +136,7 @@ public class WorldMap
 	public static final float PLACEHOLDER_PIXELS_PER_TILE = 4.0f;
 
 	/** The property a live measurement can be fed in through, without a rebuild. */
-	public static final String ZOOM_PROPERTY = "kewl.worldmap.pixelsPerTile";
+	public static final String ZOOM_PROPERTY = "oxclient.worldmap.pixelsPerTile";
 
 	/**
 	 * Sanity bounds on any calibration. A map that showed less than half a pixel per tile or more
@@ -687,7 +687,7 @@ public class WorldMap
 	/**
 	 * One log-ready line saying what the world-map overlays are actually drawing, given the map
 	 * widget's size. Pure (no client, no natives) so the wording of the warning is tested rather than
-	 * argued about; kewl.rl.Events prints it once, when the map is first open.
+	 * argued about; oxclient.rl.Events prints it once, when the map is first open.
 	 */
 	public static String scaleNote(int widgetWidth, int widgetHeight, float pixelsPerTile,
 		boolean calibrated)

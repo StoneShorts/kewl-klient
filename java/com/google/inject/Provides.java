@@ -1,5 +1,5 @@
-// Shim: the plugin declares one @Provides method for its config interface; KewlKlient's injector
-// recognises it as the config factory (java/kewl/rl/Injector.java). No Guice.
+// Shim: the plugin declares one @Provides method for its config interface; OxClient's injector
+// recognises it as the config factory (java/oxclient/rl/Injector.java). No Guice.
 package com.google.inject;
 
 import java.lang.annotation.ElementType;

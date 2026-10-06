@@ -54,7 +54,7 @@ public class PathMinimapOverlay extends Overlay
 			return null;
 		}
 
-		// kewl: ONE call, and clip to the shape that was actually judged. Asking twice re-resolved the
+		// 0xClient: ONE call, and clip to the shape that was actually judged. Asking twice re-resolved the
 		// widget and rebuilt the clip, so the shape checked for null was not necessarily the shape
 		// drawn against -- and the shape is now rebuilt whenever the minimap MOVES OR RESIZES, which
 		// is precisely the case this overlay has to follow.

@@ -11,7 +11,7 @@ Parsed parse(const std::wstring& url) {
 }
 HttpResponse request(const wchar_t* method,const std::wstring& url,const std::string& headers,std::string_view body,std::string& error) {
     HttpResponse result; Parsed p=parse(url); if(p.host.empty()||p.port!=INTERNET_DEFAULT_HTTPS_PORT){error="Jagex requests require HTTPS";return result;}
-    Handle session{WinHttpOpen(L"KewlKlient/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0)}; if(!session.h){error="WinHTTP session initialization failed";return result;}
+    Handle session{WinHttpOpen(L"0xClient/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0)}; if(!session.h){error="WinHTTP session initialization failed";return result;}
     WinHttpSetTimeouts(session,10000,10000,15000,15000); Handle connection{WinHttpConnect(session,p.host.c_str(),p.port,0)}; if(!connection.h){error="WinHTTP connection failed";return result;}
     Handle req{WinHttpOpenRequest(connection,method,p.path.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE)}; if(!req.h){error="WinHTTP request initialization failed";return result;}
     LPVOID data=body.empty()?nullptr:const_cast<char*>(body.data()); DWORD len=static_cast<DWORD>(body.size()); std::wstring wh(headers.begin(),headers.end());

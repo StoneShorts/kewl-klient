@@ -43,14 +43,14 @@ java {
 // that passes on every Linux box (2026-09-05). JDK 18+ made UTF-8 the default; say it either way.
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
 
-// Everything the launcher needs ends up here, side by side: KewlKlient.exe, kewlklient.dll,
-// kewlklient.jar, kewlklient.ini. The DLL finds the jar by looking next to itself, so they must stay
+// Everything the launcher needs ends up here, side by side: 0xClient.exe, 0xclient.dll,
+// 0xclient.jar, 0xclient.ini. The DLL finds the jar by looking next to itself, so they must stay
 // together -- this directory IS the shipping layout.
 def distDir = layout.buildDirectory.dir('dist')
 def nativeBuildDir = layout.buildDirectory.dir('native')
 
 jar {
-    archiveFileName = 'kewlklient.jar'
+    archiveFileName = '0xclient.jar'
     destinationDirectory = distDir
 }
 
@@ -123,12 +123,12 @@ tasks.register('cmakeConfigure', Exec) {
     commandLine 'cmake',
             '-S', projectDir.absolutePath,
             '-B', nativeBuildDir.get().asFile.absolutePath,
-            "-DKEWL_DIST=${distDir.get().asFile.absolutePath}"
+            "-DOXC_DIST=${distDir.get().asFile.absolutePath}"
 }
 
 tasks.register('cmakeBuild', Exec) {
     group = 'build'
-    description = 'Compile kewlklient.dll and KewlKlient.exe.'
+    description = 'Compile 0xclient.dll and 0xClient.exe.'
     dependsOn 'cmakeConfigure'
 
     doFirst { environment 'JAVA_HOME', gradleJdk }
@@ -144,16 +144,16 @@ tasks.register('cmakeBuild', Exec) {
 
 tasks.register('writeIni') {
     group = 'build'
-    description = 'Put kewlklient.ini next to the DLL, pointed at this JDK.'
+    description = 'Put 0xclient.ini next to the DLL, pointed at this JDK.'
 
     doLast {
-        def target = distDir.get().file('kewlklient.ini').asFile
+        def target = distDir.get().file('0xclient.ini').asFile
         target.parentFile.mkdirs()
 
         // Only ever written once. After that it is YOURS -- the woodcutter's tree and coordinates live
         // in here, and a build silently reverting them would be maddening.
         if (target.exists()) {
-            logger.lifecycle("kewlklient.ini already exists, leaving it alone")
+            logger.lifecycle("0xclient.ini already exists, leaving it alone")
             return
         }
 
@@ -165,7 +165,7 @@ tasks.register('writeIni') {
         // C:Usersmejdk -- every separator silently eaten. The client then cannot find jvm.dll and says
         // so, quoting a path that is visibly mangled but only if you look closely.
         String path = gradleJdk.replace('/', '\\')
-        def text = file('kewlklient.ini').text.replaceFirst(
+        def text = file('0xclient.ini').text.replaceFirst(
                 /(?m)^java=.*$/, 'java=' + java.util.regex.Matcher.quoteReplacement(path))
 
         // game= too, when a copy of the game can be found -- because this file is only ever written
@@ -197,10 +197,19 @@ tasks.register('writeIni') {
 // The two tasks you actually type
 // ---------------------------------------------------------------------------------------------------
 
+// The per-build offset files ride along beside the DLL: it loads offsets/client-<build>.json for
+// whatever osclient.exe it finds itself in, and only asks the repository for one it does not have.
+tasks.register('copyOffsets', Copy) {
+    description = 'Put offsets/*.json next to the DLL.'
+    from 'offsets'
+    include '*.json'
+    into distDir.map { it.dir('offsets') }
+}
+
 tasks.register('dist') {
     group = 'build'
     description = 'Build everything into build/dist, ready to run.'
-    dependsOn 'jar', 'cmakeBuild', 'writeIni'
+    dependsOn 'jar', 'cmakeBuild', 'writeIni', 'copyOffsets'
 
     doLast {
         // CHECK THE FILES, NOT THE EXIT CODE. A CMake target-name collision once produced two copies of
@@ -222,7 +231,7 @@ tasks.register('dist') {
             logger.warn("at whichever of the two it finds.")
         }
 
-        def required = ['KewlKlient.exe', 'kewlklient.dll', 'kewlklient.jar', 'kewlklient.ini']
+        def required = ['0xClient.exe', '0xclient.dll', '0xclient.jar', '0xclient.ini']
         def missing = required.findAll { !distDir.get().file(it).asFile.exists() }
         if (missing) {
             throw new GradleException(
@@ -242,14 +251,14 @@ tasks.register('run', Exec) {
     dependsOn 'dist'
 
     doFirst {
-        def exe = distDir.get().file('KewlKlient.exe').asFile
+        def exe = distDir.get().file('0xClient.exe').asFile
         if (!exe.exists()) {
-            throw new GradleException("KewlKlient.exe was not built. Look for the CMake error above this.")
+            throw new GradleException("0xClient.exe was not built. Look for the CMake error above this.")
         }
         logger.lifecycle("\n  Press '+ client' in the launcher to start, inject and embed the game, then log in.\n")
     }
 
-    commandLine distDir.get().file('KewlKlient.exe').asFile.absolutePath
+    commandLine distDir.get().file('0xClient.exe').asFile.absolutePath
 }
 
 // `gradlew clean` should also remove the native build tree, which lives outside Gradle's knowledge.

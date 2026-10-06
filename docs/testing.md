@@ -10,7 +10,7 @@ counted from `build/test-results/test/*.xml` on **2026-09-06**):
 | command | proves | result |
 |---|---|---|
 | `sh gradlew test -q` | the Java suite | BUILD SUCCESSFUL — **402 tests, 0 failures, 40 classes** |
-| `sh tools/wine-setup.sh` | jar + `kewlklient.dll` + `KewlKlient.exe` cross-build under Linux/llvm-mingw, assembled into `build/wine-dist/` | zero errors |
+| `sh tools/wine-setup.sh` | jar + `0xclient.dll` + `0xClient.exe` cross-build under Linux/llvm-mingw, assembled into `build/wine-dist/` | zero errors |
 | `sh tools/launcher-smoke.sh --no-live` | the launcher's ImGui strip actually renders under Wine, checked by pixel value | "offline strip: OK -- ImGui panel renders under Wine" |
 | `sh tools/bridge-roundtrip-probe` (built by the wine-setup tree; run under Wine) | the bridge bytes agree on all three sides | `rt_probe: ALL PASS` |
 
@@ -24,7 +24,7 @@ reaches the shipped jar.
 
 ### The migration's own suites
 
-**`kewl.panel.PanelBridgeTest`** (11) — the bridge contract, from Java's side, against the *real*
+**`oxclient.panel.PanelBridgeTest`** (11) — the bridge contract, from Java's side, against the *real*
 registry rather than fixtures:
 
 - `snapshotDecodesToExactlyTheRealRegistry` — a full decode with a reader that mirrors the DLL's
@@ -43,13 +43,13 @@ registry rather than fixtures:
   That is the contract, not an oversight: masking happens where a value is *drawn*, and the doc for
   what that costs is in `plugin-system.md` ("Masking is a display rule, not a boundary").
 
-**`kewl.plugin.PluginManagerTest`** (8) — lifecycle: idempotent enable/disable; a plugin whose
+**`oxclient.plugin.PluginManagerTest`** (8) — lifecycle: idempotent enable/disable; a plugin whose
 `onEnable` throws is left **disabled** and surfaced; one whose `onDisable` throws still stops; a
 recovering plugin loses its failure; registration notifies the listener and refuses duplicates;
 unregister disables then removes; reset restores declared values *through `Setting.set`* (so
 listeners and persistence fire); `shutdown` stops everything and refuses further transitions.
 
-**`kewl.profile.ProfileManagerTest`** (14) — persistence and isolation: create/switch/rename/
+**`oxclient.profile.ProfileManagerTest`** (14) — persistence and isolation: create/switch/rename/
 duplicate/delete; profiles isolated from each other; a switch restores settings the new profile is
 silent about; a switch that changes nothing fires no hooks; **pins are global, not per profile**
 (the documented decision, pinned here as a test); first run migrates to a single default profile; a
@@ -57,21 +57,21 @@ corrupt index falls back to a fresh default; a corrupt profile config costs one 
 client; setting changes reach the store through the debounce; the generation counter moves on model
 changes but not on plain value writes; the 33rd profile is refused, not created.
 
-**`kewl.profile.SettingCodecTest`** (7) — the persistence encoding: opaque colours round-trip, alpha
+**`oxclient.profile.SettingCodecTest`** (7) — the persistence encoding: opaque colours round-trip, alpha
 colours round-trip, **alpha is stored in the top byte** (ARGB — `#8000ff00` decodes to alpha 0x80,
 not alpha 0x00 in the blue channel; this pins the byte order the fixer note describes), stored
 strings decode directly, junk stays null (never an exception), the bool/int/text kinds, and
 `secretTextRoundTripsExactlyLikeText` — a secret is stored and restored as the plain text it is, so
 nobody can mistake the mask for encryption.
 
-**`kewl.plugin.hub.HubTest`** (12) — the JSON parser (round-trip, escapes/unicode, malformed input
+**`oxclient.plugin.hub.HubTest`** (12) — the JSON parser (round-trip, escapes/unicode, malformed input
 rejected rather than guessed, whole numbers stay whole); manifest validation (a well-formed entry is
 accepted; entries missing anything are rejected; artifact URLs are scheme-checked; ids that would
 escape their directory are rejected; a manifest that is neither a list nor `{"plugins": [...]}` is an
-error state, not a crash); loader refusals (a mainClass that is not a `kewl.Plugin`, one that **is a
+error state, not a crash); loader refusals (a mainClass that is not a `oxclient.Plugin`, one that **is a
 built-in resolved from the client**, and one that does not exist are all refused).
 
-**`kewl.HubEndToEndTest`** (2) — the full path with no mocks: the test compiles a plugin, jars it,
+**`oxclient.HubEndToEndTest`** (2) — the full path with no mocks: the test compiles a plugin, jars it,
 serves it over `file:` in a manifest, and installs it — manifest → download → SHA-256 verify →
 classloader → registered with the manager → removed. Also: an artifact that fails its checksum is
 not installed, and (in the same install round trip) enabled state + settings survive a reinstall —
@@ -81,7 +81,7 @@ the profile store re-applies them.
 default comes from the interface's default method (non-virtually — a `findStatic` here once silently
 zeroed every default), an un-ranged int default is not capped by an imagined `@Range`, and
 `declaringTheFullConfigSurvivesPanelConstruction` proves all **79** Shortest Path settings can be
-declared and rendered without throwing. (The third test reflects into `kewl.ui.Sidebar`, which is
+declared and rendered without throwing. (The third test reflects into `oxclient.ui.Sidebar`, which is
 why that dead file is still there — see the note in `PROGRESS.md`.)
 
 ### The autologin, secret and actor suites (added 2026-09-06)
@@ -90,18 +90,18 @@ These landed after the section above was first written, which is why a `gradlew 
 used to look like a divergence from this file. They are the automatic half of what the live autologin
 and indicators work leans on.
 
-**`kewl.config.SecretSettingTest`** (3) — the `config.secret` shape: it is a TEXT setting with the
+**`oxclient.config.SecretSettingTest`** (3) — the `config.secret` shape: it is a TEXT setting with the
 flag, `displayText()` masks it and **nothing else** (a non-secret text setting still shows), and
 set/reset/listeners behave exactly like text. The flag changes rendering, not storage or semantics.
 
-**`kewl.plugins.autologin.CredentialsTest`** (8) — where the login comes from and what may be said
+**`oxclient.plugins.autologin.CredentialsTest`** (8) — where the login comes from and what may be said
 about it: presence flags follow the values, a missing file reports absent-and-empty, values are read
 verbatim (backslashes and further `=` signs included), a BOM does not hide the first key, panel
 values win over the file when both are set, a half-filled panel falls back to the file, and — twice,
 once for each source — **nothing anything prints contains a value**. A length is a fact about a
 password, so no count is printed either.
 
-**`kewl.plugins.autologin.LoginSequenceTest`** (18) — the login state machine as a pure object over
+**`oxclient.plugins.autologin.LoginSequenceTest`** (18) — the login state machine as a pure object over
 an `InputSink` seam, with no game and no window: the default path (Existing User → backspaces →
 password → Enter → the Login **click**, which is what actually submits on this build); the
 not-remembered paths, with a click into the password field and with Tab; nothing is posted while the
@@ -114,7 +114,7 @@ Existing User again; the script is cleared on emission and on abort; the "CLICK 
 fires once after its delay and **not** for a login a human did; `clickPlay` off posts nothing; and
 `nothingTheSequenceSaysContainsThePassword`.
 
-**`kewl.rl.EventsActorDiffTest`** (4) — the per-frame actor diff that feeds RuneLite's spawn events:
+**`oxclient.rl.EventsActorDiffTest`** (4) — the per-frame actor diff that feeds RuneLite's spawn events:
 an NPC is announced exactly once on entry and once on exit, players including the local one spawn and
 despawn, each event bus gets its own complete diff (a second subscriber does not get a half-diff), and
 a **uid reused with a new id is a despawn followed by a spawn**, never a mutated actor.
@@ -160,7 +160,7 @@ wilderness checks and the pathfinder itself.
 ### What the suite deliberately does not cover
 
 - No test forces `PanelBridge.snapshot()` to throw mid-walk (the registry is fixed; injecting a
-  plugin that breaks mid-walk would mean making `KewlKlient.plugins()` mutable for tests). The
+  plugin that breaks mid-walk would mean making `OxClient.plugins()` mutable for tests). The
   per-section guards are read-verified, and the null catch-all's DLL handling is what the
   round-trip probe's "empty snapshot is rejected" line pins.
 - Nothing here exercises a real GPU, a real game process, or a real network. That is sections 2–3.
@@ -175,7 +175,7 @@ All of these run against `build/wine-dist/` produced by `sh tools/wine-setup.sh`
 sh tools/launcher-smoke.sh --no-live
 ```
 
-Runs `KewlKlient.exe` under Wine with `KEWL_FAKE_PANEL=1` and `KEWL_DUMP_FRAME=/tmp/kk-smoke-frame.pam`,
+Runs `0xClient.exe` under Wine with `OXC_FAKE_PANEL=1` and `OXC_DUMP_FRAME=/tmp/kk-smoke-frame.pam`,
 then checks **pixel values** in the dumped DIB (never a screenshot — xwd cannot see Wine child GDI
 content, which is why the dump path exists): the clear colour, the orange rail accent, a green
 toggle-ON. This is the proof that ImGui initialises with the software rasterizer and the strip
@@ -185,11 +185,11 @@ parses the real model format.
 
 | env | what it does |
 |---|---|
-| `KEWL_FAKE_PANEL=1` | skips all launch machinery (no spawn, no inject, no JVM) and feeds the **real** `readModel` parser a synthetic format-2 region: pins (some set, some not), three profiles (one non-ASCII name), hub entries exercising every button state — installed, hasUpdate, busy, error, installed-with-a-real-index. Edits go nowhere. |
-| `KEWL_FAKE_CONFIG=1` | with the above, pushes the first plugin that has settings so the config view is dumpable — a view only a mouse could reach is a view that never gets verified. |
-| `KEWL_FAKE_TAB=plugins\|profiles\|hub\|debug` | picks the starting tab so each of the four can be dumped. |
-| `KEWL_DUMP_FRAME=<path>` | writes the window DIB as P7 PAM thirty frames in. The PAM bytes are R,G,B,A (the DIB is BGRA and the dump loop reorders) — do not channel-swap on the way out. |
-| `KEWL_DUMP_EVERY=<sec>` | keeps dumping `<path>-N` every N seconds, for probes that need to watch a state change. |
+| `OXC_FAKE_PANEL=1` | skips all launch machinery (no spawn, no inject, no JVM) and feeds the **real** `readModel` parser a synthetic format-2 region: pins (some set, some not), three profiles (one non-ASCII name), hub entries exercising every button state — installed, hasUpdate, busy, error, installed-with-a-real-index. Edits go nowhere. |
+| `OXC_FAKE_CONFIG=1` | with the above, pushes the first plugin that has settings so the config view is dumpable — a view only a mouse could reach is a view that never gets verified. |
+| `OXC_FAKE_TAB=plugins\|profiles\|hub\|debug` | picks the starting tab so each of the four can be dumped. |
+| `OXC_DUMP_FRAME=<path>` | writes the window DIB as P7 PAM thirty frames in. The PAM bytes are R,G,B,A (the DIB is BGRA and the dump loop reorders) — do not channel-swap on the way out. |
+| `OXC_DUMP_EVERY=<sec>` | keeps dumping `<path>-N` every N seconds, for probes that need to watch a state change. |
 
 `tools/launcher-smoke.sh` (without `--no-live`) additionally starts the **live** launcher window (no
 fake data), prints its pid, and prints the manual probe list; it never clicks "+ client" itself.
@@ -213,9 +213,9 @@ Nothing below can be marked done by an agent: it needs a real `osclient.exe`, a 
 real cursor. Setup:
 
 ```
-# kewlklient.ini next to build/wine-dist/KewlKlient.exe:
-#   [kewl]
-#   game=Z:\path\to\osclient.exe        (dll= defaults to kewlklient.dll beside the exe)
+# 0xclient.ini next to build/wine-dist/0xClient.exe:
+#   [oxclient]
+#   game=Z:\path\to\osclient.exe        (dll= defaults to 0xclient.dll beside the exe)
 sh tools/launcher-smoke.sh             # offline check, then leaves the launcher up
 ```
 
@@ -234,7 +234,7 @@ The launcher path (ImGui strip):
    launcher refuses, and the DLL's already-loaded path is a no-op.
 5. No Swing panel appears; overlays render.
 6. Toolbar: open/close each of the four rail tabs; collapse/expand the strip (the game widens the
-   same frame; the state survives a restart via `sidebar=` in kewlklient.ini).
+   same frame; the state survives a restart via `sidebar=` in 0xclient.ini).
 7. Plugin list: all ten registry entries present, search filters (case-insensitive substring over name,
    description and the live status line — tags are declared metadata but are not carried in the
    bridge model, so they are not searched), pin stars persist, hotkey hints show.
@@ -251,7 +251,7 @@ The launcher path (ImGui strip):
     persists.
 13. Pin/unpin persists and is **not** changed by a profile switch.
 14. Hub: press refresh with no `hub=` configured and expect the honest error ("no hub configured"),
-    then set `KEWL_HUB` or `hub=` to a real manifest and refresh; search; install; the installed row
+    then set `OXC_HUB` or `hub=` to a real manifest and refresh; search; install; the installed row
     shows its plugin in the list; update when the manifest's version moves; remove.
 15. Installed external plugin survives a restart (restored in the background from installed.json).
 16. Shortest Path through the standard plugin system: its sections and settings in the strip, tile
@@ -264,7 +264,7 @@ The launcher path (ImGui strip):
 The direct-inject fallback (must keep working, unchanged on purpose):
 
 20. Start `osclient.exe` yourself and inject by hand (`wine build/wine-dist/wine_inject.exe
-    "Z:<abs path>/kewlklient.dll"` on Linux; on Windows any injector). Expect the **Java2D** panel
+    "Z:<abs path>/0xclient.dll"` on Linux; on Windows any injector). Expect the **Java2D** panel
     popup beside the game — the same plugins, the same settings, the same profile store, the same
     profiles tab — and overlays as always. Nothing in this path may have changed.
 
@@ -305,7 +305,7 @@ Three launcher bugs this shook out, all fixed in `launcher/main.cpp` / `panel_ui
 
 Known quirks of the test rig, not the client (relevant when re-running the checks above):
 
-- `KEWL_DUMP_FRAME` PAM dumps are **RGBA**, and a dump is only written when the frame changed — a
+- `OXC_DUMP_FRAME` PAM dumps are **RGBA**, and a dump is only written when the frame changed — a
   stale dump can make a successful click look like it failed. Always check the dump's mtime against
   the action.
 - NXT's login-screen pointer grab redirects **button** events to the game but not keys: "typing
@@ -316,14 +316,14 @@ Known quirks of the test rig, not the client (relevant when re-running the check
   path and are deduped by `g_kbMsgSeen`.
 
 Landed after this section was written, so none of the checks above cover it: the right-click popup
-and the world-map plumbing. `kewl/rl/MenuPopup.java` now detects a right-click from the `input()`
+and the world-map plumbing. `oxclient/rl/MenuPopup.java` now detects a right-click from the `input()`
 snapshot, fires the same `MenuOpened`/`MenuEntryAdded` events RuneLite would, and draws the
 plugin-contributed entries itself — including a synthetic "Walk here" that walks to the tile the
 right-click landed on. It does not show the game's own menu entries and cannot stop the game
 handling the right-click too, because the game menu struct is still unread (`DO_ACTION` is not
 derived this build; `Natives.doAction` is a guarded no-op that returns false, and auto-walk reports
 "cannot act" instead of pretending to walk). On the map side, the `worldMap` native is derived and
-live — `kewl/rl/Events.pushWorldMap` feeds the shim's `WorldMap` the real centre tile every frame
+live — `oxclient/rl/Events.pushWorldMap` feeds the shim's `WorldMap` the real centre tile every frame
 (`centreTile = 8*WM_CENTRE = WM_ORIGIN + 48`, pinned in the decompile and cross-checked at the GE) —
 but there is deliberately no zoom: the binary provably has no zoom field, so `WorldMap` holds a
 placeholder 4.0f. The map overlays (`PathMapOverlay`, `PathMapTooltipOverlay`) are therefore live
@@ -344,11 +344,11 @@ client-240-6 fetched from the CDN (the exact build `offsets.hpp` names), logged 
 - Four bugs the Wine pass could not show, all fixed the same day (the list with mechanisms is in
   `PROGRESS.md`, "Live on Windows"): the DLL's embedded-window search never looked under the
   launcher's window; the bridge mutex name went through a wide `swprintf("%s")` and came out as
-  `Local\L-mtx`; DLL/Java diagnostics never reached `KEWL_LOG` (now `client/log.hpp`, a kernel
+  `Local\L-mtx`; DLL/Java diagnostics never reached `OXC_LOG` (now `client/log.hpp`, a kernel
   handle installed as the process's standard output before the JVM starts); the documented
   BUILD_ID refusal did not exist (now `BUILD_VERSION`, checked against the exe's version resource).
-- How the run was driven with no hands on the mouse: `KEWL_AUTOSTART=1` (or `--launch`),
-  `KEWL_LOG` for the timeline, `KEWL_DUMP_FRAME` + `KEWL_DUMP_EVERY=10` for the strip's pixels
+- How the run was driven with no hands on the mouse: `OXC_AUTOSTART=1` (or `--launch`),
+  `OXC_LOG` for the timeline, `OXC_DUMP_FRAME` + `OXC_DUMP_EVERY=10` for the strip's pixels
   (PAM → PNG with a five-line PIL script), PowerShell `EnumWindows`/`EnumChildWindows` for the
   window tree and `OpenFileMappingW`/`OpenMutexW` for the bridge objects, `Get-Process` modules
   for "is jvm.dll in the game", the Windows Application log for the crash record.
@@ -373,7 +373,7 @@ after them is where the time should go. Mechanisms and the fixes each one needed
 - **Entity boxes and hull prisms at real heights**, on the models rather than near them, from the
   per-entity render position + height; **names** over NPCs and players (10 of 11 nearby NPCs named,
   the eleventh is a nameless NPC). Hulls were checked at one camera zoom only.
-- **The right-click popup and Shortest Path's target**: shift+right-click → the kewl popup's
+- **The right-click popup and Shortest Path's target**: shift+right-click → the 0xClient popup's
   "Set Target" → a 32-step path → red tiles on the ground, the minimap line, the debug panel. Three
   fixes were needed and are in place: a `WH_MOUSE` hook latching sub-frame clicks, a `MenuPopup` with
   no rows restoring the parked tile instead of nulling it, and a hidden world-map container counting

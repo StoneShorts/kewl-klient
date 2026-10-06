@@ -23,18 +23,18 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-// Ported from RuneLite's NPC Indicators onto the kewl shim. What changed and why:
+// Ported from RuneLite's NPC Indicators onto the 0xClient shim. What changed and why:
 //
 //  - No spawn-driven map. Upstream rebuilds a highlighted-NPC map on NpcSpawned/NpcDespawned because
-//    its NPC list is live; kewl's client.getNpcs() is already a per-frame snapshot, so the overlay
+//    its NPC list is live; 0xClient's client.getNpcs() is already a per-frame snapshot, so the overlay
 //    asks highlight(npc) per NPC per frame and a (id, name)-keyed cache makes that one hash lookup.
-//    The spawn/despawn events exist (kewl.rl.Events fires them) and are subscribed only for the
+//    The spawn/despawn events exist (oxclient.rl.Events fires them) and are subscribed only for the
 //    once-per-login "names readable" diagnostic.
 //  - No menu work: Tag/Untag, menu recolouring and the respawn timer are omitted (see the config
 //    header for what each waits on).
 //  - Numeric entries in "NPCs to highlight" match the NPC type id: NPC names read "" on this client
 //    build (DEF_NAME pending), and an id is the only handle a user has until they do.
-//  - The status line (kewl.rl.StatusSource) and the [npchighlight] KEWL_LOG lines are the diagnostics
+//  - The status line (oxclient.rl.StatusSource) and the [npchighlight] OXC_LOG lines are the diagnostics
 //    for the first live run; nothing here has been seen in-game.
 package net.runelite.client.plugins.npchighlight;
 
@@ -72,7 +72,7 @@ import net.runelite.client.util.WildcardMatcher;
 	description = "Highlight NPCs on-screen by name",
 	tags = {"highlight", "minimap", "npcs", "overlay", "tags"}
 )
-public class NpcIndicatorsPlugin extends Plugin implements kewl.rl.StatusSource
+public class NpcIndicatorsPlugin extends Plugin implements oxclient.rl.StatusSource
 {
 	@Inject
 	private Client client;
@@ -92,7 +92,7 @@ public class NpcIndicatorsPlugin extends Plugin implements kewl.rl.StatusSource
 	/** The parsed "NPCs to highlight" list; replaced whole on every config change. */
 	private volatile Filter filter = Filter.parse("");
 
-	// Diagnostics for the panel status line and KEWL_LOG.
+	// Diagnostics for the panel status line and OXC_LOG.
 	private volatile String status = "";
 	private boolean namesReadableLogged;
 	private boolean namesEmptyLogged;
@@ -267,7 +267,7 @@ public class NpcIndicatorsPlugin extends Plugin implements kewl.rl.StatusSource
 	}
 
 	/**
-	 * Chebyshev tile distance, the unit every other range in this client uses (kewl.api.Game.distanceTo
+	 * Chebyshev tile distance, the unit every other range in this client uses (oxclient.api.Game.distanceTo
 	 * and WorldPoint.distanceTo2D are both max(|dx|,|dy|)). Pure -- unit-tested. Across planes
 	 * WorldPoint.distanceTo answers Integer.MAX_VALUE, i.e. out of range, which is the right answer;
 	 * note that every actor reports the LOCAL PLAYER's plane on this build (see Actor.getWorldLocation),

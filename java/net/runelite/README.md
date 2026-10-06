@@ -2,11 +2,11 @@
 
 Everything under `java/net/runelite/` exists so that RuneLite plugin-hub plugin *source* can be
 ported into this project with minimal edits: imports stay, logic stays, and the classes the plugin
-calls are reimplemented here on top of kewl's API.
+calls are reimplemented here on top of 0xClient's API.
 
-There is no RuneLite here. No Guice (a small reflection injector in `kewl/rl/Injector.java`
+There is no RuneLite here. No Guice (a small reflection injector in `oxclient/rl/Injector.java`
 understands the `@Inject`/`@Provides` annotations plugins keep), no real `ClientThread` (everything
-runs on kewl's overlay frame thread), no plugin hub, no `.jar` loading. Upstream plugin `.jar` files
+runs on 0xClient's overlay frame thread), no plugin hub, no `.jar` loading. Upstream plugin `.jar` files
 will not run as-is; that is not the goal.
 
 Two kinds of file live here:
@@ -15,7 +15,7 @@ Two kinds of file live here:
   `coords/*`, `events/*`, `gameval/*`, `MenuAction`, `Skill`, `SpriteID`. These carry an attribution
   header.
 - **Hand-written shims**: everything that talks to the game (`Client`, `ClientState`,
-  `Perspective`, `Actor`/`NPC`/`Player`/`ActorTable`) or to kewl's client infrastructure
+  `Perspective`, `Actor`/`NPC`/`Player`/`ActorTable`) or to 0xClient's client infrastructure
   (`config/ConfigManager`, `eventbus/EventBus`, `ui/overlay/*` including `OverlayUtil`,
   `callback/ClientThread`), and the small utilities ported plugins call (`util/Text`,
   `util/WildcardMatcher`). These say so in their first comment lines.
@@ -38,5 +38,5 @@ The camera yaw AND pitch are DERIVED from the game's own projection rather than 
 points a frame, reduced by `Perspective.yawFromScreenBasis` / `pitchFromScreenBasis`), so neither
 needs an offset; see docs/plugin-system.md 5b-ii for the derivation and its measured accuracy.
 
-The bridge that runs a ported plugin is `java/kewl/rl/RlitePlugin.java`; `java/kewl/rl/TestRlite.java`
+The bridge that runs a ported plugin is `java/oxclient/rl/RlitePlugin.java`; `java/oxclient/rl/TestRlite.java`
 is the smoke test for the whole chain.

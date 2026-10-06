@@ -18,8 +18,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import kewl.api.Entity;
-import kewl.api.EntityTestSupport;
+import oxclient.api.Entity;
+import oxclient.api.EntityTestSupport;
 
 public class ActorTableTest
 {

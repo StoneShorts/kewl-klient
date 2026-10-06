@@ -9,12 +9,12 @@ public class Scene
 
 	public int getBaseX()
 	{
-		return kewl.api.Game.sceneBaseX();
+		return oxclient.api.Game.sceneBaseX();
 	}
 
 	public int getBaseY()
 	{
-		return kewl.api.Game.sceneBaseY();
+		return oxclient.api.Game.sceneBaseY();
 	}
 
 	public boolean isInstance()

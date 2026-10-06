@@ -6,7 +6,7 @@
 // DLL end of it:
 //
 //   DLL -> launcher : a snapshot of the plugin/setting model. Java owns it; the DLL pulls it from
-//                     kewl.panel.PanelBridge over JNI (jvm.hpp) and publishes it into shared memory
+//                     oxclient.panel.PanelBridge over JNI (jvm.hpp) and publishes it into shared memory
 //                     whenever Java's revision changes.
 //   launcher -> DLL : small edit records in a ring. Each is applied by calling PanelBridge's
 //                     setBool/setInt/setEnum/setText -- i.e. through Setting.set, which is the ONLY
@@ -20,14 +20,14 @@
 // ------------------------------------------------------------------------------------------------
 // THE SHARED LAYOUT -- all three sides must compile the same bytes: this file (the DLL, which writes
 // the model region and drains the ring), launcher/bridge_layout.hpp (the launcher, which reads the
-// model region and writes the ring) and kewl.panel.PanelBridge (Java, which produces the snapshot the
+// model region and writes the ring) and oxclient.panel.PanelBridge (Java, which produces the snapshot the
 // DLL repacks). The launcher cannot include this file -- it pulls jvm.hpp and the JNI headers -- so
 // bridge_layout.hpp RESTATES the layout and both files carry matching static_asserts: when this file
 // changes, that one must change with it, and at least one of the two builds breaks if it does not.
 // The byte offsets below are the contract.
 //
-//   "Local\KewlKlientBridge-<gamePid>"       the mapping, created here
-//   "Local\KewlKlientBridge-<gamePid>-mtx"   its mutex, guarding the MODEL REGION only
+//   "Local\0xClientBridge-<gamePid>"       the mapping, created here
+//   "Local\0xClientBridge-<gamePid>-mtx"   its mutex, guarding the MODEL REGION only
 //
 //   offset      0  uint32 magic 'KKBR' (0x4B424252)
 //   offset      4  uint32 format (2)
@@ -108,7 +108,7 @@
 //            int32 installedPluginIdx    index into the plugin records above of the plugin this
 //                                        entry installed, or -1 when it is not installed
 //
-//   THE JAVA SIDE of the same layout: kewl.panel.PanelBridge.snapshot() returns an int[] covering
+//   THE JAVA SIDE of the same layout: oxclient.panel.PanelBridge.snapshot() returns an int[] covering
 //   exactly the region above, in the same order, with every fixed char[N] field replaced by a
 //   length-prefixed UTF-8 string -- int32 byte length, then the bytes packed four to an int, lowest
 //   byte first, padded up to a WHOLE number of ints (so a string of n bytes advances ceil(n/4) ints;
@@ -135,7 +135,7 @@
 #include <vector>
 #include "jvm.hpp"
 
-namespace kk::bridge {
+namespace oxc::bridge {
 
 constexpr std::uint32_t BRIDGE_MAGIC   = 0x4B424252u;   // 'KKBR'
 constexpr std::uint32_t BRIDGE_VERSION = 2;
@@ -178,9 +178,9 @@ enum EditKind : std::int32_t {
 
 // Plugin flags (the int32 that follows `enabled` in each plugin record). CONFIG is the field's
 // original "hasConfig 0/1" meaning, kept in bit0 so the field's old readers are still right; DEV is
-// kewl.Plugin.developer() -- test rigs and worked examples the panel groups under a "Developer"
+// oxclient.Plugin.developer() -- test rigs and worked examples the panel groups under a "Developer"
 // heading, sorted after everything else. Mirrored in launcher/bridge_layout.hpp and as
-// PLUGIN_FLAG_CONFIG / PLUGIN_FLAG_DEV in kewl.panel.PanelBridge.
+// PLUGIN_FLAG_CONFIG / PLUGIN_FLAG_DEV in oxclient.panel.PanelBridge.
 constexpr std::int32_t PLUGIN_FLAG_CONFIG = 1 << 0;
 constexpr std::int32_t PLUGIN_FLAG_DEV    = 1 << 1;
 
@@ -465,7 +465,7 @@ inline bool buildModel(std::vector<std::uint8_t>& out, const std::vector<jint>& 
 // ------------------------------------------------------------------------------------------------
 
 inline UINT  g_msgEditNotify = 0;   // registered: launcher -> dllMsgHwnd after each edit batch
-// Registered "KewlKlientBridgeActivate": the launcher also posts this to dllMsgHwnd on WM_ACTIVATE
+// Registered "0xClientBridgeActivate": the launcher also posts this to dllMsgHwnd on WM_ACTIVATE
 // (wParam 1 = activated, 0 = deactivated) so the DLL can re-focus JagRenderView after the user clicks
 // the strip. ADDITIVE on purpose -- this proc ignores it, matching today's behaviour where focus is
 // already held by the attached input queues; a mode that needs it can read the flag later.
@@ -517,13 +517,13 @@ inline bool start(HMODULE module, HWND launcherHwnd) {
     // read the wide name as bytes and produced the mutex "Local\L-mtx". The mapping existed, its
     // mutex did not, and the launcher (which requires both) sat on "waiting for the DLL bridge"
     // forever. Seen live on Windows 2026-09-05, invisible under the llvm-mingw Wine build.
-    const std::wstring name = L"Local\\KewlKlientBridge-" + std::to_wstring(GetCurrentProcessId());
+    const std::wstring name = L"Local\\0xClientBridge-" + std::to_wstring(GetCurrentProcessId());
     const std::wstring mtxName = name + L"-mtx";
 
     g_srv.mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
                                        static_cast<DWORD>(MAPPING_BYTES), name.c_str());
     if (!g_srv.mapping) {
-        kk::logf("[bridge] CreateFileMappingW failed (GetLastError=%lu)\n",
+        oxc::logf("[bridge] CreateFileMappingW failed (GetLastError=%lu)\n",
                     static_cast<unsigned long>(GetLastError()));
         std::fflush(stdout);
         return false;
@@ -533,7 +533,7 @@ inline bool start(HMODULE module, HWND launcherHwnd) {
 
     g_srv.hdr = static_cast<Header*>(MapViewOfFile(g_srv.mapping, FILE_MAP_ALL_ACCESS, 0, 0, MAPPING_BYTES));
     if (!g_srv.hdr) {
-        kk::logf("[bridge] MapViewOfFile failed (GetLastError=%lu)\n",
+        oxc::logf("[bridge] MapViewOfFile failed (GetLastError=%lu)\n",
                     static_cast<unsigned long>(GetLastError()));
         std::fflush(stdout);
         stop();
@@ -549,7 +549,7 @@ inline bool start(HMODULE module, HWND launcherHwnd) {
 
     g_srv.mutex = CreateMutexW(nullptr, FALSE, mtxName.c_str());
     if (!g_srv.mutex) {
-        kk::logf("[bridge] CreateMutexW failed (GetLastError=%lu)\n",
+        oxc::logf("[bridge] CreateMutexW failed (GetLastError=%lu)\n",
                     static_cast<unsigned long>(GetLastError()));
         std::fflush(stdout);
         stop();
@@ -566,7 +566,7 @@ inline bool start(HMODULE module, HWND launcherHwnd) {
     WNDCLASSEXW wc{ sizeof wc };
     wc.lpfnWndProc   = msgProc;
     wc.hInstance     = module;
-    wc.lpszClassName = L"KewlKlientBridgeMsg";
+    wc.lpszClassName = L"0xClientBridgeMsg";
     RegisterClassExW(&wc);
     g_srv.msgWnd = CreateWindowExW(0, wc.lpszClassName, L"", 0, 0, 0, 0, 0, HWND_MESSAGE,
                                    nullptr, module, nullptr);
@@ -574,14 +574,14 @@ inline bool start(HMODULE module, HWND launcherHwnd) {
         g_srv.msgWnd = CreateWindowExW(0, wc.lpszClassName, L"", WS_POPUP, 0, 0, 0, 0,
                                        nullptr, nullptr, module, nullptr);
     if (!g_srv.msgWnd) {
-        kk::logf("[bridge] no message window (both HWND_MESSAGE and hidden fallback failed, GetLastError=%lu)"
+        oxc::logf("[bridge] no message window (both HWND_MESSAGE and hidden fallback failed, GetLastError=%lu)"
                     " -- edits drain on the tick loop, the notify is just latency\n",
                     static_cast<unsigned long>(GetLastError()));
         std::fflush(stdout);
     }
 
     g_srv.hdr->dllMsgHwnd = reinterpret_cast<std::uint64_t>(g_srv.msgWnd);
-    g_msgEditNotify = RegisterWindowMessageW(L"KewlKlientBridgeEdit");
+    g_msgEditNotify = RegisterWindowMessageW(L"0xClientBridgeEdit");
     return true;
 }
 
@@ -597,7 +597,7 @@ inline void stop() {
 /// snapshot could not be published -- the caller then keeps the last good model and the last good
 /// revision, and retries (rate-limited, see tick) instead of consuming the revision silently.
 inline bool publishModel(std::int64_t revision) {
-    std::vector<jint> snap = kk::bridgeSnapshot();
+    std::vector<jint> snap = oxc::bridgeSnapshot();
     std::vector<std::uint8_t> bytes;
     bytes.reserve(64 * 1024);
     if (!buildModel(bytes, snap)) {
@@ -607,7 +607,7 @@ inline bool publishModel(std::int64_t revision) {
         // truncated v2 tail reads as a format mismatch but is Java's bug, not the jar's vintage.
         if (!g_bridgeLogged) {
             g_bridgeLogged = true;
-            kk::logf("[bridge] snapshot rejected (%zu ints) -- keeping the last good model; "
+            oxc::logf("[bridge] snapshot rejected (%zu ints) -- keeping the last good model; "
                         "retrying while Java's revision stays ahead\n", snap.size());
             std::fflush(stdout);
         }
@@ -656,7 +656,7 @@ inline void publishEmptyOnce() {
     ReleaseMutex(g_srv.mutex);
     if (!g_bridgeLogged) {
         g_bridgeLogged = true;
-        kk::logf("[bridge] kewl/panel/PanelBridge not found -- panel model stays empty\n");
+        oxc::logf("[bridge] oxclient/panel/PanelBridge not found -- panel model stays empty\n");
         std::fflush(stdout);
     }
 }
@@ -669,7 +669,7 @@ inline bool applyEdit(const EditRecord& r) {
     char text[129] = {};  // that is, then hand Java a well-formed string
     std::memcpy(key, r.key, sizeof r.key);
     std::memcpy(text, r.text, sizeof r.text);
-    bool ok = kk::bridgeApply(r.kind, r.pluginIdx, key, r.intVal, text);
+    bool ok = oxc::bridgeApply(r.kind, r.pluginIdx, key, r.intVal, text);
     // text may be a password on its way to Setting.set: do not leave a copy of it on this thread's
     // stack for the next frame to reuse or a crash dump to capture (review 2026-09-06).
     SecureZeroMemory(text, sizeof text);
@@ -732,8 +732,8 @@ inline void drainEdits() {
 inline void tick() {
     if (!g_srv.hdr) return;
 
-    if (kk::bridgeAvailable()) {
-        std::int64_t rev = kk::bridgeModelRevision();
+    if (oxc::bridgeAvailable()) {
+        std::int64_t rev = oxc::bridgeModelRevision();
         std::uint64_t now = GetTickCount64();
         if (rev >= 0 && rev != g_publishedRevision && now >= g_nextSnapshotRetryMs) {
             // The revision is only consumed on SUCCESS: a rejected snapshot leaves g_publishedRevision
@@ -750,7 +750,7 @@ inline void tick() {
                 g_nextSnapshotRetryMs = 0;
                 if (g_rejected) {
                     g_rejected = false;
-                    kk::logf("[bridge] snapshot recovered\n");
+                    oxc::logf("[bridge] snapshot recovered\n");
                     std::fflush(stdout);
                 }
             } else {
@@ -766,4 +766,4 @@ inline void tick() {
     }
 }
 
-}  // namespace kk::bridge
+}  // namespace oxc::bridge

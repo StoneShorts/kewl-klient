@@ -1,12 +1,12 @@
 // tools/wine_inject.cpp -- the launcher's injection, without the window.
 //
-// Exists for one reason: testing KewlKlient on Linux, where the game runs under Wine and there is
+// Exists for one reason: testing 0xClient on Linux, where the game runs under Wine and there is
 // nobody to press the launcher's button. It does exactly what launcher/main.cpp does -- find
 // osclient.exe, refuse if the DLL is already in it, write the DLL path into the process, call
 // LoadLibraryA on a remote thread -- and prints the result to stdout so a script can read it.
 //
 // Build (see tools/wine.md):  x86_64-w64-mingw32-g++ -O2 -o wine_inject.exe wine_inject.cpp
-// Run:                        wine wine_inject.exe Z:\path\to\kewlklient.dll
+// Run:                        wine wine_inject.exe Z:\path\to\0xclient.dll
 
 #include <windows.h>
 #include <tlhelp32.h>
@@ -29,7 +29,7 @@ static bool alreadyLoaded(DWORD pid, const wchar_t* moduleName) {
 
 int main(int argc, char** argv) {
     if (argc != 2) {
-        printf("usage: wine_inject.exe <path to kewlklient.dll in Windows form, e.g. Z:\\tmp\\dist\\kewlklient.dll>\n");
+        printf("usage: wine_inject.exe <path to 0xclient.dll in Windows form, e.g. Z:\\tmp\\dist\\0xclient.dll>\n");
         return 2;
     }
     std::string dll = argv[1];
@@ -48,8 +48,8 @@ int main(int argc, char** argv) {
     CloseHandle(snap);
     if (!pid) { printf("FAIL: osclient.exe is not running\n"); return 1; }
 
-    if (alreadyLoaded(pid, L"kewlklient.dll")) {
-        printf("FAIL: kewlklient.dll is already loaded -- restart the game to load a new build\n");
+    if (alreadyLoaded(pid, L"0xclient.dll")) {
+        printf("FAIL: 0xclient.dll is already loaded -- restart the game to load a new build\n");
         return 1;
     }
 

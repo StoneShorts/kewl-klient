@@ -12,27 +12,27 @@ the "before" picture -- the migration changes it, and this file says what there 
 One Gradle project (`build.gradle`) drives both halves:
 
 - **Java** lives in `java/` (not `src/main/java`), tests in `java-test/`, resources in `resources/`.
-  Output: `build/dist/kewlklient.jar`. Java 17, external deps only lombok (compile-only, for the ported
+  Output: `build/dist/0xclient.jar`. Java 17, external deps only lombok (compile-only, for the ported
   plugin's `@Getter`) and JUnit 4 + Mockito (test-only). Nothing external reaches the shipped jar.
 - **Native** (DLL + launcher) is built by shelling out to CMake from the same Gradle file
   (`cmakeConfigure`/`cmakeBuild`), with `JAVA_HOME` pointed at the JDK Gradle runs on so `FindJNI`
-  finds the matching `jni.h`. `writeIni` stamps the JDK path into `kewlklient.ini`
+  finds the matching `jni.h`. `writeIni` stamps the JDK path into `0xclient.ini`
   (`Matcher.quoteReplacement` -- see the comment there for the backslash-eating bug it fixes).
-- `gradlew dist` produces the shipping layout in `build/dist`: `KewlKlient.exe`, `kewlklient.dll`,
-  `kewlklient.jar`, `kewlklient.ini` -- the DLL finds the jar next to itself. `gradlew run` builds and
+- `gradlew dist` produces the shipping layout in `build/dist`: `0xClient.exe`, `0xclient.dll`,
+  `0xclient.jar`, `0xclient.ini` -- the DLL finds the jar next to itself. `gradlew run` builds and
   starts the launcher. On Linux, `sh tools/wine-setup.sh` sets up the C++ toolchain under Wine.
-- `kewlklient.ini` holds exactly one setting: `java=` (the JDK path). It is **not** plugin state; the
+- `0xclient.ini` holds exactly one setting: `java=` (the JDK path). It is **not** plugin state; the
   only plugin-adjacent things a user writes into it are coordinates they were told to keep there.
 
 Two runtime shapes, chosen by whoever launched the game:
 
 1. **Direct-inject (legacy, must keep working).** The DLL is injected into `osclient.exe` with no
    launcher. It creates its own host window, starts the JVM, and Java draws the control panel itself
-   as a second layered window (`kewl.ui.SidePanel` -- 36px icon strip + 250px body, Java2D into a
+   as a second layered window (`oxclient.ui.SidePanel` -- 36px icon strip + 250px body, Java2D into a
    small image, presented through `Natives.presentPanel`).
-2. **Launcher mode (the new path).** `KewlKlient.exe` (ImGui, `launcher/main.cpp`) spawns the game,
+2. **Launcher mode (the new path).** `0xClient.exe` (ImGui, `launcher/main.cpp`) spawns the game,
    injects the DLL, and reparents the game into its own window. It calls
-   `KewlKlient.setPanelMode(true)` before the first tick; from then on Java draws **only** overlays
+   `OxClient.setPanelMode(true)` before the first tick; from then on Java draws **only** overlays
    (`SidePanel.frame` returns immediately, `panelMouse` never arrives) and the panel pixels belong to
    the launcher's software rasterizer.
 
@@ -40,14 +40,14 @@ Two runtime shapes, chosen by whoever launched the game:
 
 All of it is one JNI class plus one shared-memory region:
 
-- `kewl.Natives` -- the JNI surface the JVM calls out through: `viewport()`, `present(pixels,w,h)`
+- `oxclient.Natives` -- the JNI surface the JVM calls out through: `viewport()`, `present(pixels,w,h)`
   (overlay), `presentPanel(pixels,w,h)` (legacy panel window), `container(id)`, `input()`. Called
   from the frame thread only.
-- `KewlKlient.tick(int keys)` -- the DLL calls this ~30x/sec. One call does everything:
+- `OxClient.tick(int keys)` -- the DLL calls this ~30x/sec. One call does everything:
   `Plugin.drainLater()` (queued edits), hotkey toggles from the keys bitmask, per-plugin `tick()`,
   then `render()` (overlay canvas + legacy panel).
-- `kewl.panel.PanelBridge` -- the bridge. The DLL's thread pulls `PanelBridge.snapshot()` (a packed
-  `int[]`, format below) over JNI and copies it into shared memory `Local\KewlKlientBridge-<pid>`;
+- `oxclient.panel.PanelBridge` -- the bridge. The DLL's thread pulls `PanelBridge.snapshot()` (a packed
+  `int[]`, format below) over JNI and copies it into shared memory `Local\0xClientBridge-<pid>`;
   the launcher renders from that copy. Edits go the other way: the launcher writes a 208-byte edit
   record into a ring in the same region, the DLL reads it and calls `PanelBridge.setBool/setInt/
   setEnum/setText` (key `"enabled"` is the plugin switch, not a Setting). Every edit is queued through
@@ -60,32 +60,32 @@ All of it is one JNI class plus one shared-memory region:
 
 ## 3. Plugin inventory (the registry, in panel order)
 
-`KewlKlient.PLUGINS` is a static `List.of(...)` -- the list **is** the registry. No scanning, no
+`OxClient.PLUGINS` is a static `List.of(...)` -- the list **is** the registry. No scanning, no
 annotation processor, no manifest. Index stability is load-bearing: edit records name plugins by
 index into this list.
 
-| # | Plugin (kewl name) | Class | Hotkey | Declares |
+| # | Plugin (0xClient name) | Class | Hotkey | Declares |
 |---|---|---|---|---|
-| 0 | Player visuals | `kewl.plugins.PlayerVisuals` | F1 | colour, tile, combat, range (4) |
-| 1 | NPC visuals | `kewl.plugins.NpcVisuals` | F2 | colour, ids, showId, tile, range (5) |
-| 2 | Woodcutter | `kewl.plugins.Woodcutter` | F5 | tree, x, y, delay, colour, panel (6) |
-| 3 | Shortest Path | `kewl.rl.RlitePlugin` wrapping `shortestpath.ShortestPathPlugin` | - | `autoWalk` (kewl-side) + **79** proxied RuneLite settings across 7 sections |
-| 4 | Test Rlite | `kewl.rl.RlitePlugin` wrapping `kewl.rl.TestRlite` | - | proxied shim smoke-test config |
+| 0 | Player visuals | `oxclient.plugins.PlayerVisuals` | F1 | colour, tile, combat, range (4) |
+| 1 | NPC visuals | `oxclient.plugins.NpcVisuals` | F2 | colour, ids, showId, tile, range (5) |
+| 2 | Woodcutter | `oxclient.plugins.Woodcutter` | F5 | tree, x, y, delay, colour, panel (6) |
+| 3 | Shortest Path | `oxclient.rl.RlitePlugin` wrapping `shortestpath.ShortestPathPlugin` | - | `autoWalk` (oxc-side) + **79** proxied RuneLite settings across 7 sections |
+| 4 | Test Rlite | `oxclient.rl.RlitePlugin` wrapping `oxclient.rl.TestRlite` | - | proxied shim smoke-test config |
 
-Player visuals and NPC visuals are switched on by `KewlKlient.start()` -- a hardcoded
+Player visuals and NPC visuals are switched on by `OxClient.start()` -- a hardcoded
 `instanceof` check, which is the current (weak) answer to "default enabled state".
 
-**Behaves like a plugin but does not extend `kewl.Plugin`:** `shortestpath.ShortestPathPlugin` and
-`kewl.rl.TestRlite` extend the *shim* `net.runelite.client.plugins.Plugin` (protected empty
-`startUp`/`shutDown`, `setEventBus`). They never appear in `KewlKlient.plugins()` directly; a
-`kewl.rl.RlitePlugin` adapter owns each one, and it is the adapter that is a kewl plugin. Everything
-else in `kewl.rl` (`Injector`, `Events`, `AutoWalk`, `MenuPopup`, `OverlayRenderer`, `PathCheck`) is a
+**Behaves like a plugin but does not extend `oxclient.Plugin`:** `shortestpath.ShortestPathPlugin` and
+`oxclient.rl.TestRlite` extend the *shim* `net.runelite.client.plugins.Plugin` (protected empty
+`startUp`/`shutDown`, `setEventBus`). They never appear in `OxClient.plugins()` directly; a
+`oxclient.rl.RlitePlugin` adapter owns each one, and it is the adapter that is a 0xClient plugin. Everything
+else in `oxclient.rl` (`Injector`, `Events`, `AutoWalk`, `MenuPopup`, `OverlayRenderer`, `PathCheck`) is a
 helper object, not a plugin.
 
 ## 4. Config lifecycle (today, end to end)
 
 1. **Declare.** A plugin constructor calls `config.bool/number/text/colour/enumeration(...)` on its
-   `public final Config config` (insertion-ordered `LinkedHashMap` of `kewl.config.Setting`). Each
+   `public final Config config` (insertion-ordered `LinkedHashMap` of `oxclient.config.Setting`). Each
    `Setting` carries key, label, description, kind, default, min/max, enum options.
 2. **Enrich.** For an adapted RuneLite plugin, `net.runelite.client.config.ConfigManager` (shim)
    walks the `@ConfigGroup` interface and *declares the missing settings onto the same `Config`* --
@@ -94,23 +94,23 @@ helper object, not a plugin.
    `MethodHandles.privateLookupIn + findSpecial` (a `findStatic` here once silently zeroed every
    default; `ConfigDefaultsTest` pins it). `Setting.onChange` posts a shim `ConfigChanged` on the
    EventBus, which is how a ported plugin notices panel edits.
-3. **Recover what the flatten lost.** `kewl.ui.RlConfigMeta` re-reads the annotations by reflection
+3. **Recover what the flatten lost.** `oxclient.ui.RlConfigMeta` re-reads the annotations by reflection
    (sections, item position, keybind-ness, `@Units`) -- the metadata `ConfigManager` throws away. The
    bridge packs it so the launcher can group and suffix without knowing about RuneLite annotations.
 4. **Edit.** The only write path is `Setting.set(Object)`: bumps the static `Setting.REVISION`,
    clamps INTs to min/max, fires change listeners. The Java panel's slider drags and the bridge's
    `set*` methods both land here; nothing writes the value field directly.
-5. **Reset.** `kewl.ui.SettingDefaults` captures every setting's declared default once, at
+5. **Reset.** `oxclient.ui.SettingDefaults` captures every setting's declared default once, at
    `SidePanel.setPlugins` (start-up, before any input can touch a value), into an `IdentityHashMap`.
    `reset(plugin)` / `resetOne(setting)` push defaults back **through `Setting.set`**, so listeners
    fire exactly as if the user had clicked. There is no other notion of "default" anywhere.
 6. **Persist. Nowhere.** There is no disk layer: no properties file, no `Preferences`, no JSON, no
-   registry. The only `java.io` use in `kewl` is `Theme` loading a TTF font. Values live and die with
+   registry. The only `java.io` use in `oxclient` is `Theme` loading a TTF font. Values live and die with
    the process, and the Profiles tab says so on screen rather than pretending otherwise.
 
 ## 5. Profiles (what actually exists)
 
-`kewl.ui.Profiles` is a package-private static class -- real semantics, no storage:
+`oxclient.ui.Profiles` is a package-private static class -- real semantics, no storage:
 
 - `Map<String, Map<pluginName, Map<settingKey, Object>>>`, insertion-ordered, in memory only.
 - `save` snapshots every setting of every plugin under a generated name ("profile 1", "profile 2"
@@ -118,7 +118,7 @@ helper object, not a plugin.
   (unknown keys skipped); `delete` removes. There is **no rename, no duplicate, no active-profile
   concept, no enable-state capture, and no persistence**.
 - Keyed by plugin *name*, not index or id -- renaming a plugin silently orphans its snapshot.
-- `kewl.ui.ProfilesView` is the only caller (the Java2D Profiles tab); the launcher's profiles tab is
+- `oxclient.ui.ProfilesView` is the only caller (the Java2D Profiles tab); the launcher's profiles tab is
   a placeholder. There is no `ProfileManager`; if the migration adds one, the seam is exactly this
   class: same operations, a real store behind them, and `SettingDefaults`' capture folded in (a
   profile that cannot say what the defaults were cannot implement "reset" per profile).
@@ -131,10 +131,10 @@ helper object, not a plugin.
 - `Plugin.setEnabled` is final and idempotent (no-op on no change), bumps the static
   `Plugin.enableVersion`, and try/catches `onEnable`/`onDisable` -- a plugin misbehaving on a toggle
   must not take the client with it.
-- `KewlKlient.tick` wraps every plugin's `tick()` and `render()` in its own try/catch: one broken
+- `OxClient.tick` wraps every plugin's `tick()` and `render()` in its own try/catch: one broken
   plugin skips its frame, the others run. There is **no** further isolation -- a plugin that throws
   every frame throws forever (logged each time), and nothing suspends or unregisters it.
-- There is **no `PluginManager`**. `KewlKlient` is the de facto manager (registry + tick loop +
+- There is **no `PluginManager`**. `0xClient` is the de facto manager (registry + tick loop +
   hotkey dispatch + default-enable), `SidePanel`/`PanelBridge` mutate only through
   `Plugin.later`-queued `setEnabled`/`Setting.set`, and that discipline is what a real manager has to
   formalise without changing.
@@ -163,7 +163,7 @@ terminator -- on little-endian x86 the C++ side memcpys straight out of the int 
 are applied in Java by `utf8`, on **byte** boundaries (never splitting a multi-byte character).
 An exception anywhere in `snapshot()` degrades to a valid empty header rather than a hung panel.
 
-Test coverage: `java-test/kewl/PanelBridgeTest` (9 tests) walks a snapshot with a reader that mirrors
+Test coverage: `java-test/oxclient/PanelBridgeTest` (9 tests) walks a snapshot with a reader that mirrors
 the DLL's model copier -- asserts exact field order, the trailing-int "packer and docs agree" check,
 per-setting kinds against a restated kind table, the 8-option cap, and the edit contract (edits run
 on the frame thread only, land in `Setting.set` so listeners fire and `REVISION` moves, out-of-range
@@ -173,14 +173,14 @@ enables and is stable when nothing changed, `debugLines` shape).
 
 ## 8. Shortest Path (spec phase 8's subject)
 
-- **Wrapping.** `kewl.rl.RlitePlugin("Shortest Path", ..., ShortestPathPlugin::new)` builds the whole
-  object graph eagerly in its constructor via `kewl.rl.Injector` -- a hand-rolled, ~150-line stand-in
+- **Wrapping.** `oxclient.rl.RlitePlugin("Shortest Path", ..., ShortestPathPlugin::new)` builds the whole
+  object graph eagerly in its constructor via `oxclient.rl.Injector` -- a hand-rolled, ~150-line stand-in
   for Guice that honours `@Inject` fields and `@Provides` methods and binds `Client`, `EventBus`,
   `OverlayManager`, `ConfigManager`, `ClientThread`, `KeyManager`, `SpriteManager`. Building eagerly
   is what makes the proxied config appear in the panel before the plugin is ever enabled.
 - **Config.** `shortestpath.ShortestPathConfig`: `@ConfigGroup("shortestpath")`, 84 `@ConfigItem`s
-  (5 hidden -> 79 kewl settings, the number `ConfigDefaultsTest` asserts), 7 `@ConfigSection`s.
-  The adapter adds one kewl-native setting on top: `autoWalk` (default **on**, unlike upstream --
+  (5 hidden -> 79 0xClient settings, the number `ConfigDefaultsTest` asserts), 7 `@ConfigSection`s.
+  The adapter adds one oxc-native setting on top: `autoWalk` (default **on**, unlike upstream --
   see RlitePlugin's comment for why).
 - **Threading.** Pathfinding runs on its **own** single-thread executor (`shortest-path-%d`, via the
   guava `ThreadFactoryBuilder` shim), created per `restartPathfinding` under `pathfinderMutex`;
@@ -191,14 +191,14 @@ enables and is stable when nothing changed, `debugLines` shape).
   fields (`cacheConfigValues` on startUp, not live reads), the **static** `configOverride` map fed by
   plugin messages, `pendingTasks`, `lastMenuOpenedPoint`, the world-map `marker`, the cached minimap
   sprites and resizable/fixed clip shapes, the shift-clear `KeyListener`, and the menu-target colour
-  strings. On the kewl side, `kewl.rl.MenuPopup` draws a Java2D right-click fallback menu and re-fires
+  strings. On the 0xClient side, `oxclient.rl.MenuPopup` draws a Java2D right-click fallback menu and re-fires
   the menu events (the real game menu is still not readable -- `offsets.hpp` `DO_ACTION`),
-  and `kewl.rl.AutoWalk` walks the computed path one game tick at a time, stopping at plane changes,
+  and `oxclient.rl.AutoWalk` walks the computed path one game tick at a time, stopping at plane changes,
   surfacing its state as the adapter's `status()`.
 
 ## 9. Swing audit (spec: remove cleanly)
 
-- **`kewl/ui/Sidebar.java` is the only Swing in the repo** -- JFrame, JPanel, JSlider, JColorChooser,
+- **`oxclient/ui/Sidebar.java` is the only Swing in the repo** -- JFrame, JPanel, JSlider, JColorChooser,
   SwingUtilities, javax.swing.Timer. It is the pre-overlay control panel and it is **dead code**: no
   production reference remains (SidePanel replaced it; its javadoc explains why). It still compiles
   into the jar.
@@ -215,7 +215,7 @@ enables and is stable when nothing changed, `debugLines` shape).
 
 | Spec wants | Today |
 |---|---|
-| PluginManager owning state transitions | `KewlKlient` statics + `Plugin.later` discipline |
+| PluginManager owning state transitions | `0xClient` statics + `Plugin.later` discipline |
 | Plugin metadata (id/version/tags/author/pinned/icon/hidden) | name, description, hotkey, status only; `@PluginDescriptor` exists on the wrapped RL plugins but is read nowhere |
 | Persistent settings + enabled state | nothing is written anywhere, ever |
 | Profiles with real storage, active profile, rename/duplicate | in-memory map, generated names, load/save/delete |
@@ -233,7 +233,7 @@ enables and is stable when nothing changed, `debugLines` shape).
 Audited files: `client/bridge.hpp`, `client/dllmain.cpp`, `client/jvm.hpp`, `client/overlay.hpp`,
 `client/panel.hpp`, `client/imgui_sw.hpp`, `launcher/main.cpp`, `launcher/panel_ui.hpp`,
 `launcher/bridge_layout.hpp`, `CMakeLists.txt`, `tools/wine-setup.sh`. Baseline confirmed to
-compile with `sh tools/wine-setup.sh` after the audit (jar + `kewlklient.dll` + `KewlKlient.exe`
+compile with `sh tools/wine-setup.sh` after the audit (jar + `0xclient.dll` + `0xClient.exe`
 into `build/wine-dist/`).
 
 ## N1. The bridge, as actually implemented (v1)
@@ -366,12 +366,12 @@ that drives it:
 - `uiResetArm()` — ConfigView's click-again-to-confirm arm, cleared on every navigation.
 - `uiEditsSent()` — session edit counter for the debug tab.
 
-Views, all drawn inside `draw()`: a 250px body window (`##kewl.body`) plus a 36px rail window
-(`##kewl.rail`), positioned at `dispW - PANEL_W` / `dispW - RAIL_W` against the ImGui display size.
+Views, all drawn inside `draw()`: a 250px body window (`##oxclient.body`) plus a 36px rail window
+(`##oxclient.rail`), positioned at `dispW - PANEL_W` / `dispW - RAIL_W` against the ImGui display size.
 Two separate windows rather than children of main.cpp's root because the root is
 `ImGuiWindowFlags_NoMouseInputs` (clicks over the game child must stay the game's) and a
 NoMouseInputs parent is skipped by hit-testing while plain windows are not. The body holds a fixed
-header (name + bridge note + separator) and a `##kewl.scroll` child that draws either the pushed
+header (name + bridge note + separator) and a `##oxclient.scroll` child that draws either the pushed
 `configView` or the active tab's `pluginsView`/`profilesView`/`debugView`. `profilesView` is a
 placeholder paragraph; `debugView` shows bridge-side numbers only (the memory-read lines are Java's
 `debugLines` and not in the v1 contract). Plugin rows are hand-laid-out (`SetCursorScreenPos` +
@@ -399,18 +399,18 @@ active-edge painting — adding a tab is a loop bound plus a `tabIcon` case) or 
 profiles tab; the rail is 36px cells with a 3px orange left edge and RL_TAB hover, so a fourth icon
 fits without layout change.
 
-**KEWL_FAKE_* probes.** `frame()` checks `KEWL_FAKE_PANEL` once: it skips all launch machinery,
+**OXC_FAKE_* probes.** `frame()` checks `OXC_FAKE_PANEL` once: it skips all launch machinery,
 forces `Phase::Embedded`, and on the first frame builds a synthetic model region in
 `loadFakePanelModel` — bytes laid out exactly as `buildModel` writes them, then fed through the
 REAL `readModel` (that parser is the code most likely to drift, so the probe exercises it, not a
-look-alike). `KEWL_FAKE_CONFIG` pushes the first plugin with settings via `debugPushConfig` (a
-view only a mouse could reach is a view that never gets verified); `KEWL_FAKE_TAB=debug|profiles`
+look-alike). `OXC_FAKE_CONFIG` pushes the first plugin with settings via `debugPushConfig` (a
+view only a mouse could reach is a view that never gets verified); `OXC_FAKE_TAB=debug|profiles`
 selects a tab (unknown values ignored); edits go nowhere (`writeEdit` no-ops without a mapping).
-`KEWL_DUMP_FRAME=<path>` writes the DIB as P7 PAM at frame 30 (PAM bytes are R,G,B,A — the DIB is
-BGRA and the dump loop reorders, so do not channel-swap on the way out); `KEWL_DUMP_EVERY=<sec>`
+`OXC_DUMP_FRAME=<path>` writes the DIB as P7 PAM at frame 30 (PAM bytes are R,G,B,A — the DIB is
+BGRA and the dump loop reorders, so do not channel-swap on the way out); `OXC_DUMP_EVERY=<sec>`
 keeps dumping `<path>-N` every N seconds (~30 fps assumption baked into the modulo). The plumbing
 is `tools/launcher-smoke.sh`. **For v2**: `loadFakePanelModel` must grow pinned[]/profiles/hub
-sections in the same byte order the real writer will use, and `KEWL_FAKE_TAB` needs values for
+sections in the same byte order the real writer will use, and `OXC_FAKE_TAB` needs values for
 whatever tab hosts the hub; a collapsed-sidebar state needs its own env, since there is no offline
 click path to a collapse control in a PAM dump.
 
@@ -430,13 +430,13 @@ thread via `wndProc` → `ImGuiIO` events. Consequences worth keeping in mind:
 
 **DLL: `DllMain` spawns one `run` thread; that thread is everything.** Window discovery (up to 60 s
 poll), launcher-mode detection (`detectLauncherMode` — three signals, 30 s patience when the parent
-process is KewlKlient.exe, none otherwise, with a `PeekMessage` drain inside the wait loop so
+process is 0xClient.exe, none otherwise, with a `PeekMessage` drain inside the wait loop so
 posted signals land), `JNI_CreateJavaVM` **on that thread**, then a `Sleep(33)` loop doing window
-reconciliation, `kk::bridge::tick()` (one JNI revision poll + `drainEdits`) and `kk::tickJvm()`.
+reconciliation, `oxc::bridge::tick()` (one JNI revision poll + `drainEdits`) and `oxc::tickJvm()`.
 
 **The frame-thread rule, and why v2 edits are safe on it.** Every JNI call the bridge makes —
 revision poll, snapshot pull, and every edit applied via `bridgeApply` → `PanelBridge.set*` —
-happens on the same `run` thread that calls `KewlKlient.tick(int)`. Java's `tick()` is what drains
+happens on the same `run` thread that calls `OxClient.tick(int)`. Java's `tick()` is what drains
 `Plugin.later`, so an edit applied on this thread is sequenced with the frame thread by
 construction; there is no second thread touching Java's plugin state from the native side, and
 `env()`'s `AttachCurrentThread` has exactly one non-JVM thread to attach. The rule v2 must not
@@ -455,7 +455,7 @@ reset) is still one string per record, bounded by the 64-slot ring, so nothing n
 
 ## N4. Window lifecycle, and what a sidebar COLLAPSE touches
 
-The launcher window is class `KewlKlientLauncher`, `WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN`,
+The launcher window is class `0xClientLauncher`, `WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN`,
 `CS_HREDRAW | CS_VREDRAW`, no `hbrBackground` (`WM_ERASEBKGND` returns 1 — the DIB owns every
 pixel). `WS_CLIPCHILDREN` is load-bearing: the frame loop `GetDC`s the whole window and `BitBlt`s
 the full DIB every frame, and the clip region excludes the game child so the repaint cannot smear
@@ -496,8 +496,8 @@ frame — immediately above the host, not topmost — plus hide-on-minimize for 
    the canvas, not the strip. Direct-inject's Java panel is untouched by construction.
 4. `WS_CLIPCHILDREN` needs no change — the game child simply gets wider, and the clip region
    follows.
-5. An offline probe (`KEWL_FAKE_COLLAPSE` or similar) is needed, since there is no click path to a
-   new rail control in a PAM dump (the same reason `KEWL_FAKE_TAB` exists).
+5. An offline probe (`OXC_FAKE_COLLAPSE` or similar) is needed, since there is no click path to a
+   new rail control in a PAM dump (the same reason `OXC_FAKE_TAB` exists).
 
 ## N5. Idle CPU / frame pacing
 
@@ -525,7 +525,7 @@ whatever frame the next 30 fps poll catches, which is fine; but resist any tempt
 the poll interval to make the hub feel snappier — the edit-notify message is the latency path for
 edits, and model freshness at 30 fps is already better than the eye needs.
 
-## N6. What KEWL_FAKE_PANEL's synthetic model needs for the new views
+## N6. What OXC_FAKE_PANEL's synthetic model needs for the new views
 
 `loadFakePanelModel` currently emits 3 plugins (one carrying 7 settings, one per widget shape the
 config view knows, across sections `"render"`/`"general"`/loose) and nothing else. For v2 the same
@@ -545,7 +545,7 @@ function must append, in the real writer's order:
 
 The fake region is built with local `putI32`/`putField` lambdas that mirror `buildModel` — they
 must grow the same new helpers at the same time, or the probe starts "verifying" a format the real
-writer no longer produces. `KEWL_FAKE_TAB` needs values for any new rail tab, and hub actions in
+writer no longer produces. `OXC_FAKE_TAB` needs values for any new rail tab, and hub actions in
 fake mode write edits nowhere, so the installing flag's progression can only be exercised by
 making the fake model's flags change over frames (or by accepting that progression is verified
 live, by the human).

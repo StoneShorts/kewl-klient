@@ -1,5 +1,5 @@
 // Shim of net.runelite.api.NPC (BSD-2, RuneLite): a stable identity for one NPC handle, re-pointed at
-// this frame's kewl.api.Entity snapshot by ActorTable each frame.
+// this frame's oxclient.api.Entity snapshot by ActorTable each frame.
 //
 // Identity is what ported plugins lean on: an NPC received in NpcSpawned is held in Sets/Maps until
 // the matching NpcDespawned, and compared by reference. So one NPC object lives per (npc, uid) for as
@@ -9,7 +9,7 @@ package net.runelite.api;
 
 import javax.annotation.Nullable;
 
-import kewl.api.Entity;
+import oxclient.api.Entity;
 
 public class NPC extends Actor
 {

@@ -175,7 +175,7 @@ public class NpcSceneOverlay extends Overlay
 		if (highlightedNpc.isName())
 		{
 			String npcName = Text.sanitize(actor.getName());
-			// kewl: a nameless definition (transform NPCs whose child carries the name -- ids 5885 and
+			// 0xClient: a nameless definition (transform NPCs whose child carries the name -- ids 5885 and
 			// 6521 live, 2026-09-06) shows its id instead of nothing, like Test Actors does.
 			if (npcName.isEmpty())
 			{
